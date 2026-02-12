@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lens Lab: Perfect Control</title>
+    <style>
+        /* Global Reset */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            margin: 0; padding: 0;
+            display: flex; height: 100vh; width: 100vw;
+            font-family: 'Segoe UI', Helvetica, Arial, sans-serif; 
+            background: #f4f7f6; 
+            overflow: hidden; 
+            touch-action: none; /* Disable browser default scrolling */
+            overscroll-behavior: none;
+        }
+        
+        /* --- Sidebar (Controls) --- */
+        #sidebar {
+            width: 360px; 
+            background: white; 
+            padding: 15px;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; 
+            z-index: 50; 
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch;
+            /* Allow vertical scrolling inside sidebar, prevent horizontal interference */
+            touch-action: pan-y; 
+        }
+        
+        h2 { margin: 0 0 12px 0; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        
+        /* Data Panel */
+        .calc-panel {
+            background: #fff8e1; border: 1px solid #ffe082; padding: 10px;
+            border-radius: 6px; margin-bottom: 15px; flex-shrink: 0;
+        }
+        .formula {
+            text-align: center; font-family: 'Times New Roman', serif; font-size: 18px;
+            margin-bottom: 8px; color: #5d4037; font-weight: bold;
+        }
+        .res-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;
+        }
+        .res-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding-bottom: 2px;}
+        .res-label { color: #555; }
+        .res-val { font-weight: bold; color: #2c3e50; font-family: monospace; }
+        
+        /* Property Badges */
+        #props-container {
+            display: flex; gap: 5px; margin-top: 8px; justify-content: center; flex-wrap: wrap;
+        }
+        .prop-badge {
+            padding: 4px 8px; border-radius: 4px; 
+            font-size: 12px; font-weight: bold; 
+            background: #e2e3e5; color: #383d41;
+            white-space: nowrap;
+        }
+        .prop-real { background: #d4edda; color: #155724; }
+        .prop-virtual { background: #f8d7da; color: #721c24; }
+
+        /* Controls */
+        .control-group { margin-bottom: 12px; background: #fafafa; padding: 8px; border-radius: 6px; border: 1px solid #eee; }
+        .control-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 5px; }
+        .val-disp { color: #2980b9; }
+
+        .range-wrapper { display: flex; align-items: center; gap: 5px; }
+        .range-bound {
+            width: 45px; padding: 4px; font-size: 12px; text-align: center;
+            border: 1px solid #ccc; border-radius: 3px; color: #777; background: #fff;
+        }
+        
+        input[type=range] { 
+            flex-grow: 1; cursor: pointer; height: 24px; 
+            /* Crucial: prevents scrolling page when sliding */
+            touch-action: manipulation; 
+        }
+        select { width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 4px; background: #fff; }
+
+        /* Toggles */
+        .legend-row { display: flex; align-items: center; font-size: 13px; margin-bottom: 8px; color: #34495e; cursor: pointer; user-select: none; }
+        .legend-row input { margin-right: 8px; transform: scale(1.2); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+        
+        .inf-row {
+            background: #e3f2fd; padding: 10px; border-radius: 4px; border: 1px solid #90caf9; margin-bottom: 15px;
+        }
+        .inf-row label { color: #1565c0; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; align-items: center;}
+        #angle-control { margin-top: 8px; display: none; padding-top: 8px; border-top: 1px solid #bbdefb; }
+
+        .fun-mode-row { 
+            margin-top: 15px; padding-top: 10px; border-top: 2px dashed #eee; 
+            font-weight: bold; color: #e67e22; cursor: pointer; display: flex; align-items: center; font-size: 13px;
+        }
+
+        button { 
+            width: 100%; padding: 10px; background: #e74c3c; color: white; 
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; margin-top: 5px;
+        }
+        button:active { background: #c0392b; }
+
+        /* --- Canvas Area --- */
+        #canvas-wrap { 
+            flex-grow: 1; position: relative; background: #fff; 
+            overflow: hidden; touch-action: none; cursor: grab;
+            z-index: 10;
+        }
+        #canvas-wrap:active { cursor: grabbing; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        .help-overlay {
+            position: absolute; bottom: 10px; right: 10px;
+            background: rgba(255,255,255,0.9); padding: 5px 10px;
+            border-radius: 4px; font-size: 11px; color: #666; pointer-events: none;
+            border: 1px solid #ccc; z-index: 5;
+        }
+
+        /* --- Mobile Layout (Portrait) --- */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            
+            /* Canvas on Top (55% height) */
+            #canvas-wrap { 
+                height: 55vh; 
+                width: 100%; 
+                order: 1; 
+                border-bottom: 2px solid #ddd;
+            }
+            
+            /* Sidebar on Bottom (45% height) */
+            #sidebar { 
+                height: 45vh; 
+                width: 100%; 
+                order: 2; 
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+                padding-bottom: 30px; 
+            }
+            
+            h2 { font-size: 16px; margin-bottom: 8px; }
+            .control-group { padding: 5px; margin-bottom: 8px; }
+            .formula { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>Lens Ray Tracer</h2>
+    
+    <div class="calc-panel">
+        <div class="formula">m = h<sub>i</sub> / h<sub>o</sub> = | v / u |</div>
+        <div class="res-grid">
+            <div class="res-item"><span class="res-label">Obj Dist (u):</span><span id="res-u" class="res-val">150</span></div>
+            <div class="res-item"><span class="res-label">Img Dist (v):</span><span id="res-v" class="res-val">300</span></div>
+            <div class="res-item"><span class="res-label">Obj Height (h):</span><span id="res-ho" class="res-val">60</span></div>
+            <div class="res-item"><span class="res-label">Magnification:</span><span id="res-m" class="res-val">2.00x</span></div>
+        </div>
+        <div id="props-container"></div>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">Lens Type</div>
+        <select id="type"><option value="convex">Convex (Converging)</option><option value="concave">Concave (Diverging)</option></select>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">Focal Length (f) <span id="disp-f" class="val-disp">100</span></div>
+        <div class="range-wrapper">
+            <input type="number" class="range-bound" id="min-f" value="50">
+            <input type="range" id="inp-f" min="50" max="300" step="10" value="100">
+            <input type="number" class="range-bound" id="max-f" value="300">
+        </div>
+    </div>
+
+    <div class="inf-row">
+        <label><input type="checkbox" id="mode-inf"> Object at Infinity (Parallel Rays)</label>
+        <div id="angle-control">
+            <div class="control-header">Incident Angle <span id="disp-ang" class="val-disp">0°</span></div>
+            <input type="range" id="inp-ang" min="-20" max="20" step="1" value="0">
+        </div>
+    </div>
+
+    <div class="control-group" id="group-u">
+        <div class="control-header">Object Distance (u) <span id="disp-u" class="val-disp">150</span></div>
+        <div class="range-wrapper">
+            <input type="number" class="range-bound" id="min-u" value="30">
+            <input type="range" id="inp-u" min="30" max="600" step="10" value="150">
+            <input type="number" class="range-bound" id="max-u" value="600">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">Object Height (h) <span id="disp-h" class="val-disp">60</span></div>
+        <div class="range-wrapper">
+            <input type="number" class="range-bound" id="min-h" value="20">
+            <input type="range" id="inp-h" min="20" max="150" step="5" value="60">
+            <input type="number" class="range-bound" id="max-h" value="150">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">Display Options</div>
+        <label class="legend-row"><input type="checkbox" id="vis-img" checked> <b>Show Resultant Image</b></label>
+        <label class="legend-row"><input type="checkbox" id="vis-r1" checked><div class="dot" style="background:orange;"></div> Ray 1 (Parallel)</label>
+        <label class="legend-row"><input type="checkbox" id="vis-r2" checked><div class="dot" style="background:purple;"></div> Ray 2 (Center)</label>
+        <label class="legend-row"><input type="checkbox" id="vis-r3" checked><div class="dot" style="background:green;"></div> Ray 3 (Focal)</label>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <label class="legend-row"><input type="checkbox" id="vis-int" checked> <b>Interactive Mode (Tap to Add Ray)</b></label>
+        <button onclick="customRays=[]; updatePhysics();">Clear Custom Rays</button>
+
+        <label class="fun-mode-row">
+            <input type="checkbox" id="vis-fun"> 🎉 Animated Fun Mode
+        </label>
+    </div>
+</div>
+
+<div id="canvas-wrap">
+    <canvas id="cvs"></canvas>
+    <div class="help-overlay">🖱️ Scroll/Pinch to Zoom • Drag to Pan • Double-click Reset</div>
+</div>
+
+<script>
+    const cvs = document.getElementById('cvs');
+    const ctx = cvs.getContext('2d');
+    const wrap = document.getElementById('canvas-wrap');
+    const propsDiv = document.getElementById('props-container');
+    const sidebar = document.getElementById('sidebar');
+    
+    // --- Logic Fix: Canvas Security Lock ---
+    // This variable ensures we ONLY process drag events initiated on the canvas.
+    let isCanvasActive = false;
+
+    // Strict Event Isolation for Sidebar
+    const stopProp = (e) => e.stopPropagation();
+    sidebar.addEventListener('mousedown', stopProp, { passive: false });
+    sidebar.addEventListener('touchstart', stopProp, { passive: false });
+    sidebar.addEventListener('wheel', stopProp, { passive: false });
+    sidebar.addEventListener('touchmove', stopProp, { passive: false });
+
+    // Physics State
+    let p = { f: 100, u: 150, h: 60, type: 'convex', angle: 0 };
+    let res = { v: Infinity, hi: 0, m: 0, isVirtual: false };
+    let customRays = [];
+    let scale = 1.0, ox = 0, oy = 0;
+    
+    // Drag State
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let lastPan = { x: 0, y: 0 };
+    let lastTouchDist = 0;
+
+    // Elements
+    const els = {
+        type: document.getElementById('type'),
+        f: document.getElementById('inp-f'),
+        u: document.getElementById('inp-u'),
+        h: document.getElementById('inp-h'),
+        inf: document.getElementById('mode-inf'),
+        ang: document.getElementById('inp-ang'),
+        img: document.getElementById('vis-img'),
+        r1: document.getElementById('vis-r1'),
+        r2: document.getElementById('vis-r2'),
+        r3: document.getElementById('vis-r3'),
+        int: document.getElementById('vis-int'),
+        fun: document.getElementById('vis-fun'),
+        df: document.getElementById('disp-f'),
+        du: document.getElementById('disp-u'),
+        dh: document.getElementById('disp-h'),
+        da: document.getElementById('disp-ang'),
+        ru: document.getElementById('res-u'),
+        rv: document.getElementById('res-v'),
+        rm: document.getElementById('res-m'),
+        rho: document.getElementById('res-ho'),
+        minF: document.getElementById('min-f'), maxF: document.getElementById('max-f'),
+        minU: document.getElementById('min-u'), maxU: document.getElementById('max-u'),
+        minH: document.getElementById('min-h'), maxH: document.getElementById('max-h'),
+    };
+
+    function init() {
+        window.addEventListener('resize', resize);
+        
+        Object.values(els).forEach(e => {
+            if(e && (e.tagName === 'INPUT' || e.tagName === 'SELECT')) {
+                e.addEventListener('input', () => {
+                    checkBounds(); 
+                    updatePhysics();
+                });
+            }
+        });
+
+        // Interaction Events
+        // Note: Global move/up listeners are used for smooth dragging, 
+        // but 'isCanvasActive' prevents them from firing if you clicked the sidebar.
+        cvs.addEventListener('wheel', handleWheel, { passive: false });
+        
+        cvs.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        
+        cvs.addEventListener('touchstart', handleTouchStart, { passive: false });
+        window.addEventListener('touchmove', handleTouchMove, { passive: false });
+        window.addEventListener('touchend', handleTouchEnd);
+        
+        cvs.addEventListener('dblclick', fitToScreen);
+
+        resize();
+        updatePhysics();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function checkBounds() {
+        els.f.min = els.minF.value; els.f.max = els.maxF.value;
+        els.u.min = els.minU.value; els.u.max = els.maxU.value;
+        els.h.min = els.minH.value; els.h.max = els.maxH.value;
+    }
+
+    // --- Safe Interaction Handlers ---
+
+    function handleWheel(e) {
+        if(e.target !== cvs) return;
+        e.preventDefault();
+        const factor = Math.exp(e.deltaY * -0.001);
+        applyZoom(factor, e.clientX, e.clientY);
+    }
+    
+    function handleMouseDown(e) {
+        if(e.target !== cvs) return;
+        
+        isCanvasActive = true; // Lock functionality to canvas
+        isDragging = false; 
+        dragStart = { x: e.clientX, y: e.clientY }; 
+        lastPan = { x: ox, y: oy };
+    }
+    
+    function handleMouseMove(e) {
+        if (!isCanvasActive) return; // Ignore if sidebar was clicked
+        
+        if (e.buttons === 0) { isCanvasActive = false; return; }
+
+        if (Math.abs(e.clientX - dragStart.x) > 3) isDragging = true;
+        if (isDragging) { ox = lastPan.x + (e.clientX - dragStart.x); oy = lastPan.y + (e.clientY - dragStart.y); }
+    }
+    
+    function handleMouseUp(e) {
+        isCanvasActive = false; // Release lock
+        
+        if (!isDragging && e.target === cvs && els.int.checked) {
+            addCustomRay(e.clientX, e.clientY);
+        }
+        isDragging = false;
+    }
+    
+    function handleTouchStart(e) {
+        if(e.target !== cvs) return;
+        
+        isCanvasActive = true;
+        if (e.touches.length === 1) { 
+            isDragging = false; 
+            dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; 
+            lastPan = { x: ox, y: oy }; 
+        }
+        else if (e.touches.length === 2) { 
+            isDragging = true; 
+            lastTouchDist = getTouchDist(e.touches); 
+        }
+    }
+    
+    function handleTouchMove(e) {
+        if (!isCanvasActive) return;
+        
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            let dx = e.touches[0].clientX - dragStart.x; 
+            let dy = e.touches[0].clientY - dragStart.y;
+            if (Math.abs(dx) > 3) isDragging = true;
+            ox = lastPan.x + dx; oy = lastPan.y + dy;
+        } else if (e.touches.length === 2) {
+            let newDist = getTouchDist(e.touches);
+            if (lastTouchDist > 0) applyZoom(newDist/lastTouchDist, (e.touches[0].clientX+e.touches[1].clientX)/2, (e.touches[0].clientY+e.touches[1].clientY)/2);
+            lastTouchDist = newDist;
+        }
+    }
+    
+    function handleTouchEnd(e) {
+        if (!isDragging && e.changedTouches.length === 1 && e.target === cvs && els.int.checked && isCanvasActive) {
+            addCustomRay(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }
+        isDragging = false; lastTouchDist = 0;
+        if(e.touches.length === 0) isCanvasActive = false;
+    }
+    
+    function getTouchDist(t) { return Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY); }
+    function applyZoom(f, cx, cy) {
+        if (scale * f < 0.1 || scale * f > 10) return;
+        let rect = cvs.getBoundingClientRect();
+        let wx = (cx - rect.left - ox) / scale; let wy = (cy - rect.top - oy) / scale;
+        scale *= f;
+        ox = (cx - rect.left) - wx * scale; oy = (cy - rect.top) - wy * scale;
+    }
+    function addCustomRay(cx, cy) {
+        let rect = cvs.getBoundingClientRect();
+        let sy = (cy - rect.top - oy) / scale;
+        if (els.inf.checked) customRays.push({ type: 'parallel_angled', y: sy });
+        else {
+            let sx = (cx - rect.left - ox) / scale;
+            let slope = (sy - (-p.h)) / (sx - (-p.u));
+            customRays.push({ type: 'normal', val: slope * p.u - p.h });
+        }
+    }
+    function fitToScreen() { 
+        ox = cvs.width/2; oy = cvs.height/2; 
+        scale = Math.min(cvs.width, cvs.height)/1000; 
+        if (scale < 0.5) scale = 0.5;
+    }
+    function resize() { cvs.width = wrap.clientWidth; cvs.height = wrap.clientHeight; if(scale===1) fitToScreen(); }
+
+    function updatePhysics() {
+        p.type = els.type.value;
+        p.f = (p.type === 'convex') ? parseInt(els.f.value) : -parseInt(els.f.value);
+        p.u = parseInt(els.u.value);
+        p.h = parseInt(els.h.value);
+        p.angle = parseInt(els.ang.value);
+
+        let isInf = els.inf.checked;
+        document.getElementById('group-u').style.opacity = isInf ? "0.5" : "1";
+        document.getElementById('group-u').style.pointerEvents = isInf ? "none" : "auto";
+        document.getElementById('angle-control').style.display = isInf ? "block" : "none";
+
+        els.df.innerText = Math.abs(p.f);
+        els.du.innerText = isInf ? "∞" : p.u;
+        els.dh.innerText = p.h;
+        els.da.innerText = p.angle + "°";
+
+        if (isInf) {
+            let rad = p.angle * Math.PI / 180;
+            res.v = p.f;
+            res.hi = -p.f * Math.tan(rad);
+            res.m = 0;
+            res.isVirtual = (p.type === 'concave');
+        } else {
+            res.v = Infinity;
+            if (Math.abs(p.u - Math.abs(p.f)) > 0.01 || p.type === 'concave') {
+                res.v = (p.f * p.u) / (p.u - p.f);
+            }
+            res.m = (res.v === Infinity) ? 0 : -res.v/p.u;
+            res.hi = res.m * p.h;
+            res.isVirtual = (res.v < 0);
+        }
+
+        els.rho.innerText = p.h;
+        if (!isInf && Math.abs(res.v) > 10000) {
+            els.ru.innerText = p.u; els.rv.innerText = "∞"; els.rm.innerText = "Undef";
+            propsDiv.innerHTML = `<span class="prop-badge prop-info">Image at Infinity</span>`;
+        } else {
+            els.ru.innerText = isInf ? "∞" : p.u;
+            els.rv.innerText = res.v.toFixed(1);
+            els.rm.innerText = Math.abs(res.m).toFixed(2) + "x";
+            
+            let html = "";
+            if (isInf) {
+                html += `<span class="prop-badge prop-info">Image on Focal Plane</span>`;
+                html += `<span class="prop-badge ${p.type==='convex'?'prop-real':'prop-virtual'}">${p.type==='convex'?'Real':'Virtual'}</span>`;
+            } else {
+                html += `<span class="prop-badge ${res.isVirtual ? 'prop-virtual' : 'prop-real'}">${res.isVirtual ? 'Virtual' : 'Real'}</span>`;
+                
+                // --- VOCABULARY ---
+                html += `<span class="prop-badge prop-info">${res.m < 0 ? 'Inverted' : 'Erect'}</span>`;
+                
+                let magText = "";
+                if(Math.abs(res.m) > 1.01) magText = "Magnified";
+                else if(Math.abs(res.m) < 0.99) magText = "Diminished";
+                else magText = "Same Size";
+                html += `<span class="prop-badge prop-info">${magText}</span>`;
+            }
+            propsDiv.innerHTML = html;
+        }
+    }
+
+    function gameLoop(t) {
+        ctx.clearRect(0,0,cvs.width,cvs.height);
+        ctx.save();
+        ctx.translate(ox, oy);
+        ctx.scale(scale, scale);
+
+        drawGrid();
+        drawLens();
+        drawPoint(p.f, "F"); drawPoint(-p.f, "F'");
+        drawPoint(2*p.f, "2F"); drawPoint(-2*p.f, "2F'");
+
+        let isFun = els.fun.checked;
+        let isInf = els.inf.checked;
+
+        if (isInf) {
+            ctx.strokeStyle = "#999"; ctx.setLineDash([5,5]);
+            ctx.beginPath(); ctx.moveTo(p.f, -20000); ctx.lineTo(p.f, 20000); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = "#666"; ctx.font = "italic 12px Arial"; ctx.fillText("Focal Plane", p.f+10, -150);
+
+            let rad = p.angle * Math.PI / 180;
+            let rayCount = 7; let step = (p.h*2.5)/(rayCount-1);
+            for(let i=0; i<rayCount; i++) drawAngledRay(-p.h*1.25 + i*step, rad);
+
+            if(els.img.checked) {
+                let focusY = (p.type==='concave') ? p.f*Math.tan(rad) : p.f*Math.tan(rad);
+                ctx.fillStyle = "#c0392b"; ctx.beginPath(); ctx.arc(p.f, focusY, 6/scale, 0, Math.PI*2); ctx.fill();
+                ctx.fillText(p.type==='convex'?"Real":"Virtual", p.f+10, focusY);
+            }
+            customRays.forEach(r => { if(r.type==='parallel_angled') drawAngledRay(r.y, rad, "#555"); });
+
+        } else {
+            if(isFun) drawCat(-p.u, -p.h, false, t);
+            else drawArrow(-p.u, -p.h, "#333", false);
+
+            if (Math.abs(res.v) < 10000 && els.img.checked) {
+                if(isFun) drawCat(res.v, -res.hi, true, t); 
+                else drawArrow(res.v, -res.hi, "#c0392b", res.isVirtual);
+            }
+
+            if (els.r1.checked) drawRay1(res.v, res.isVirtual);
+            if (els.r2.checked) drawRay2(res.v, res.isVirtual);
+            if (els.r3.checked) drawRay3(res.v, res.isVirtual);
+            customRays.forEach(r => { if(r.type==='normal') drawGeneric(r.val, res.isVirtual); });
+        }
+        ctx.restore();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function drawGrid() {
+        let gridSize = 20; 
+        let left = -ox/scale, right = (cvs.width-ox)/scale, top = -oy/scale, bottom = (cvs.height-oy)/scale;
+        let startX = Math.floor(left/gridSize)*gridSize, startY = Math.floor(top/gridSize)*gridSize;
+        ctx.strokeStyle = "#e0e0e0"; ctx.lineWidth = 1/scale; ctx.beginPath();
+        for (let x = startX; x < right; x += gridSize) { ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
+        for (let y = startY; y < bottom; y += gridSize) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
+        ctx.stroke();
+        ctx.strokeStyle = "#999"; ctx.lineWidth = 2/scale; ctx.beginPath();
+        ctx.moveTo(left, 0); ctx.lineTo(right, 0); ctx.stroke();
+    }
+
+    function drawRay1(v, isVirtual) {
+        let color = "orange"; let y = -p.h;
+        drawLine(-p.u, y, 0, y, color, true); 
+        let slope = -y / p.f;
+        drawLine(0, y, 10000, y + slope*10000, color, true);
+        if (p.type === 'concave') drawDashed(0, y, p.f, 0, color); 
+        else if (isVirtual) drawDashed(0, y, v, y + slope*(v), color);
+    }
+
+    function drawRay2(v, isVirtual) {
+        let color = "purple"; let slope = -p.h / -p.u; 
+        drawLine(-p.u, -p.h, 0, 0, color, true);
+        drawLine(0, 0, 10000, 10000*slope, color, true);
+        if (isVirtual) drawDashed(0, 0, -10000, -10000*slope, color);
+    }
+
+    function drawRay3(v, isVirtual) {
+        let color = "green"; let yObj = -p.h; let focusX = -p.f; 
+        let m = (0 - yObj) / (focusX - (-p.u)); let yInt = yObj + m * (0 - (-p.u));
+        drawLine(-p.u, yObj, 0, yInt, color, true);
+        if (p.type === 'convex' && isVirtual) drawDashed(focusX, 0, -p.u, yObj, color);
+        if (p.type === 'concave') drawDashed(0, yInt, focusX, 0, color);
+        drawLine(0, yInt, 10000, yInt, color, true);
+        if (isVirtual) drawDashed(0, yInt, -10000, yInt, color);
+    }
+
+    function drawGeneric(yInt, isVirtual) {
+        let color = "#7f8c8d";
+        drawLine(-p.u, -p.h, 0, yInt, color, true);
+        let slopeIn = (yInt - (-p.h)) / (0 - (-p.u));
+        let slopeOut = slopeIn - (yInt / p.f);
+        drawLine(0, yInt, 10000, yInt + slopeOut*10000, color, true);
+        if (isVirtual) drawDashed(0, yInt, -10000, yInt + slopeOut*-10000, color);
+    }
+
+    function drawAngledRay(yHit, rad, color="orange") {
+        let slopeIn = Math.tan(rad);
+        drawLine(-10000, yHit + slopeIn*-10000, 0, yHit, color, true);
+        let slopeOut = slopeIn - (yHit / p.f);
+        drawLine(0, yHit, 10000, yHit + slopeOut*10000, color, true);
+        if (p.type === 'concave') drawDashed(0, yHit, p.f, yHit + slopeOut*p.f, color);
+    }
+
+    function drawArrow(x, y, color, dashed) {
+        ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3/scale;
+        if(dashed) ctx.setLineDash([5,5]);
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,y); ctx.stroke();
+        ctx.setLineDash([]);
+        let s = 10/scale;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x-s/1.5, y+(s*(y>0?-1:1))); ctx.lineTo(x+s/1.5, y+(s*(y>0?-1:1))); ctx.fill();
+        ctx.restore();
+    }
+
+    function drawCat(x, tipY, isImage, time) {
+        ctx.save(); ctx.translate(x, 0);
+        let h = Math.abs(tipY); if (h<5) { ctx.restore(); return; }
+        if (tipY>0) ctx.scale(1, -1);
+        if (isImage) ctx.globalAlpha = 0.3;
+        
+        let bounce = Math.sin(time/150)*(h*0.05); let wiggle = Math.cos(time/150)*0.1;
+        ctx.translate(0, -bounce); ctx.scale(h/100, h/100);
+        
+        let fur = isImage ? "#e74c3c" : "#34495e";
+        ctx.beginPath(); ctx.strokeStyle=fur; ctx.lineWidth=8; ctx.lineCap="round";
+        ctx.moveTo(0,-10); ctx.quadraticCurveTo(30+Math.sin(time/100)*20, -30, 40+Math.sin(time/100)*20, -60); ctx.stroke();
+        
+        ctx.save(); ctx.rotate(wiggle); ctx.fillStyle=fur;
+        ctx.beginPath(); ctx.ellipse(0,-40,25,40,0,0,7); ctx.fill();
+        ctx.beginPath(); ctx.arc(0,-85,22,0,7); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-15,-95); ctx.lineTo(-25,-115); ctx.lineTo(-5,-100); ctx.moveTo(15,-95); ctx.lineTo(25,-115); ctx.lineTo(5,-100); ctx.fill();
+        ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(-8,-88,5,0,7); ctx.arc(8,-88,5,0,7); ctx.fill();
+        ctx.fillStyle="black"; ctx.beginPath(); ctx.arc(-8,-88,2,0,7); ctx.arc(8,-88,2,0,7); ctx.fill();
+        ctx.restore();
+        
+        ctx.fillStyle=fur; 
+        ctx.beginPath(); ctx.ellipse(-15,-5-Math.max(0,Math.sin(time/150)*10),8,5,0,0,7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(15,-5-Math.max(0,-Math.sin(time/150)*10),8,5,0,0,7); ctx.fill();
+        ctx.restore();
+    }
+
+    function drawLens() {
+        let h = cvs.height/scale + Math.abs(oy/scale)*2; 
+        let w = 15; ctx.strokeStyle = "#2980b9"; ctx.fillStyle = "rgba(52, 152, 219, 0.1)"; ctx.lineWidth = 2/scale;
+        ctx.beginPath();
+        if (p.type === 'convex') { ctx.moveTo(0,-h); ctx.quadraticCurveTo(w,0,0,h); ctx.quadraticCurveTo(-w,0,0,-h); } 
+        else { ctx.moveTo(-w,-h); ctx.lineTo(w,-h); ctx.quadraticCurveTo(0,0,w,h); ctx.lineTo(-w,h); ctx.quadraticCurveTo(0,0,-w,-h); }
+        ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,-h); ctx.lineTo(0,h); ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    function drawPoint(x, l) {
+        ctx.fillStyle = "#2c3e50"; ctx.beginPath(); ctx.arc(x,0,4/scale,0,7); ctx.fill();
+        ctx.font = "bold 14px Arial"; ctx.save(); ctx.scale(1/scale, 1/scale); ctx.fillText(l, x*scale-5, 20); ctx.restore();
+    }
+
+    function drawLine(x1, y1, x2, y2, c, arrow) {
+        ctx.strokeStyle = c; ctx.lineWidth = 2/scale; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        if (arrow && Math.abs(x2-x1)>10) {
+            let t = (Math.abs(x2)>5000 || Math.abs(x1)>5000) ? (x1==0 ? 0.2 : 0.8) : 0.5;
+            let mx = x1+(x2-x1)*t, my = y1+(y2-y1)*t;
+            let ang = Math.atan2(y2-y1, x2-x1); let s = 8/scale;
+            ctx.save(); ctx.translate(mx,my); ctx.rotate(ang); ctx.fillStyle=c;
+            ctx.beginPath(); ctx.moveTo(s,0); ctx.lineTo(-s,-s/2); ctx.lineTo(-s,s/2); ctx.fill(); ctx.restore();
+        }
+    }
+
+    function drawDashed(x1, y1, x2, y2, c) {
+        ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=1.5/scale; ctx.setLineDash([6,6]);
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.restore();
+    }
+
+    init();
+</script>
+</body>
+</html>
