@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Simulator v8 (Bug Fix)</title>
+    <style>
+        :root { --bg: #121212; --panel: #1e1e1e; --text: #e0e0e0; --accent: #4fc3f7; --danger: #ef5350; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; user-select: none; }
+        
+        #sidebar { width: 320px; background: var(--panel); padding: 15px; display: flex; flex-direction: column; gap: 15px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; overflow-y: auto; }
+        h2 { margin: 0; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        h3 { margin: 5px 0; font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        .control-group { background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid #333; }
+        
+        label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #ccc; margin-bottom: 4px; }
+        input[type=range] { width: 100%; margin: 5px 0; cursor: pointer; accent-color: var(--accent); }
+        button { width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; cursor: pointer; margin-bottom: 5px; font-size: 0.85rem; transition: background 0.2s; }
+        button:hover { background: #444; }
+        button.active { background: var(--accent); color: #000; font-weight: bold; border: none; }
+        button.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+        button.danger:hover { background: var(--danger); color: white; }
+        .row { display: flex; gap: 5px; }
+        
+        #canvas-wrapper { flex-grow: 1; position: relative; cursor: default; }
+        #overlay { position: absolute; top: 10px; right: 10px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 6px; font-size: 0.8rem; line-height: 1.5; border: 1px solid #444; }
+        .key { color: var(--accent); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>Field Simulator v8</h2>
+    <div class="control-group">
+        <h3>View Mode</h3>
+        <div class="row">
+            <button id="btn-vec" class="active" onclick="setMode('vector')">Vector Mesh</button>
+            <button id="btn-field" onclick="setMode('field')">Field Lines</button>
+        </div>
+        
+        <div id="vector-settings">
+            <label>Grid Spacing: <span id="dens-val">40px</span></label>
+            <input type="range" id="density" min="25" max="100" value="40" step="5" oninput="draw()">
+        </div>
+        <div id="field-settings" style="display:none;">
+            <label>Field Line Density: <span id="field-dens-val">1.0x</span></label>
+            <input type="range" id="field-density" min="0.5" max="3.0" value="1.0" step="0.1" oninput="draw()">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h3>Add Source</h3>
+        <div class="row">
+            <button onclick="addPoint(20)">+ Point</button>
+            <button onclick="addPoint(-20)">- Point</button>
+            <button onclick="addPlate()">Parallel Plate</button>
+        </div>
+    </div>
+
+    <div class="control-group" id="props-panel" style="opacity:0.5; pointer-events:none;">
+        <h3>Selected Object</h3>
+        <div id="prop-charge">
+            <label>Charge (Q): <span id="val-q">0</span></label>
+            <input type="range" id="input-q" min="-50" max="50" oninput="updateObj()">
+        </div>
+        <div id="prop-plate" style="display:none;">
+            <label>Voltage (V): <span id="val-v">0</span></label>
+            <input type="range" id="input-v" min="-50" max="50" oninput="updateObj()">
+            <label>Separation (d): <span id="val-d">0</span></label>
+            <input type="range" id="input-d" min="30" max="200" oninput="updateObj()">
+        </div>
+        <button class="danger" onclick="deleteObj()">Delete Selected</button>
+    </div>
+
+    <div class="control-group">
+        <button onclick="resetCamera()">Reset View</button>
+        <button class="danger" onclick="clearAll()">Clear All</button>
+    </div>
+</div>
+
+<div id="canvas-wrapper">
+    <canvas id="simCanvas"></canvas>
+    <div id="overlay">
+        <span class="key">Left Drag Object</span> to Move<br>
+        <span class="key">Right Drag</span> to Pan View<br>
+        <span class="key">Scroll</span> to Zoom<br>
+        <hr style="border: 0; border-top: 1px solid #555; margin: 5px 0;">
+        <b>Vector Mode:</b><br>
+        Hold <span class="key">Left Click</span> on background<br>
+        to see component vectors.
+    </div>
+</div>
+
+<script>
+/** CONFIGURATION */
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+const k = 8000; 
+
+let objects = [];
+let mode = 'vector'; 
+let camera = { x: 0, y: 0, zoom: 1 };
+let selectedObj = null;
+let draggingObj = null;
+let isPanning = false;
+let isHoldingView = false;
+let lastMouse = { x: 0, y: 0 };
+
+// UI Elements
+const uiProps = document.getElementById('props-panel');
+const uiVecSettings = document.getElementById('vector-settings');
+const uiFieldSettings = document.getElementById('field-settings');
+const inputQ = document.getElementById('input-q');
+const inputV = document.getElementById('input-v');
+const inputD = document.getElementById('input-d');
+const labelQ = document.getElementById('val-q');
+const labelV = document.getElementById('val-v');
+const labelD = document.getElementById('val-d');
+const labelDens = document.getElementById('dens-val');
+const labelFieldDens = document.getElementById('field-dens-val');
+
+/** CLASSES */
+class PointCharge {
+    constructor(x, y, q) {
+        this.type = 'point';
+        this.x = x;
+        this.y = y;
+        this.q = q;
+        this.r = 15; 
+    }
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        ctx.fillStyle = this.q > 0 ? '#ff4444' : '#2979ff';
+        ctx.fill();
+        ctx.lineWidth = selectedObj === this ? 3 : 1;
+        ctx.strokeStyle = selectedObj === this ? '#ffff00' : '#fff';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.q > 0 ? '+'+this.q : this.q, this.x, this.y);
+    }
+    getField(x, y) {
+        const dx = x - this.x;
+        const dy = y - this.y;
+        const dist2 = dx*dx + dy*dy;
+        const dist = Math.sqrt(dist2);
+        if (dist < this.r) return {x:0, y:0}; 
+        const E = (k * this.q) / dist2;
+        return { x: E * (dx/dist), y: E * (dy/dist) };
+    }
+}
+
+class Plate {
+    constructor(x, y, v) {
+        this.type = 'plate';
+        this.x = x;
+        this.y = y;
+        this.v = v;
+        this.sep = 80;
+        this.width = 160;
+    }
+    draw(ctx) {
+        const halfW = this.width/2;
+        const halfH = this.sep/2;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        const colTop = this.v > 0 ? '#ff4444' : '#2979ff';
+        const colBot = this.v > 0 ? '#2979ff' : '#ff4444';
+        
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = colTop;
+        ctx.beginPath(); ctx.moveTo(-halfW, -halfH); ctx.lineTo(halfW, -halfH); ctx.stroke();
+        ctx.strokeStyle = colBot;
+        ctx.beginPath(); ctx.moveTo(-halfW, halfH); ctx.lineTo(halfW, halfH); ctx.stroke();
+
+        if (selectedObj === this) {
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5,5]);
+            ctx.strokeRect(-halfW-10, -halfH-10, this.width+20, this.sep+20);
+        }
+        ctx.restore();
+    }
+    getField(x, y) {
+        const dx = x - this.x;
+        const dy = y - this.y;
+        const halfW = this.width/2;
+        const halfH = this.sep/2;
+        
+        // IDEAL CAPACITOR LOGIC: Field exists ONLY inside the box
+        if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
+            return { x: 0, y: (this.v * 80) / this.sep };
+        }
+        
+        // Zero field outside
+        return {x:0, y:0};
+    }
+}
+
+/** ENGINE */
+function init() {
+    window.addEventListener('resize', resize);
+    resize();
+    objects.push(new PointCharge(-100, 0, 20));
+    objects.push(new PointCharge(100, 0, 20)); 
+    canvas.addEventListener('mousedown', onDown);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('mousemove', onMove);
+    canvas.addEventListener('wheel', onWheel, {passive:false});
+    canvas.addEventListener('contextmenu', e=>e.preventDefault());
+    requestAnimationFrame(loop);
+}
+
+function resize() {
+    canvas.width = document.getElementById('canvas-wrapper').clientWidth;
+    canvas.height = document.getElementById('canvas-wrapper').clientHeight;
+}
+
+function loop() {
+    ctx.fillStyle = "#121212";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvas.width/2 + camera.x, canvas.height/2 + camera.y);
+    ctx.scale(camera.zoom, camera.zoom);
+
+    if (mode === 'vector') drawVectorMode();
+    else drawFieldMode();
+
+    objects.forEach(o => o.draw(ctx));
+    ctx.restore();
+    requestAnimationFrame(loop);
+}
+
+function getNetField(x, y) {
+    let Ex = 0, Ey = 0;
+    objects.forEach(o => {
+        const f = o.getField(x, y);
+        Ex += f.x;
+        Ey += f.y;
+    });
+    return { x: Ex, y: Ey, mag: Math.sqrt(Ex*Ex + Ey*Ey) };
+}
+
+function getColor(mag, alpha=1) {
+    const t = Math.min(1, mag / 25); 
+    const hue = 240 - (t * 240);
+    return `hsla(${hue}, 100%, 50%, ${alpha})`;
+}
+
+/** VECTOR MODE */
+function drawVectorMode() {
+    const density = parseInt(document.getElementById('density').value);
+    labelDens.innerText = density + "px";
+    const viewL = -(canvas.width/2 + camera.x)/camera.zoom - 50;
+    const viewR = (canvas.width/2 - camera.x)/camera.zoom + 50;
+    const viewT = -(canvas.height/2 + camera.y)/camera.zoom - 50;
+    const viewB = (canvas.height/2 - camera.y)/camera.zoom + 50;
+
+    for (let x = Math.floor(viewL/density)*density; x < viewR; x += density) {
+        for (let y = Math.floor(viewT/density)*density; y < viewB; y += density) {
+            if (isHoldingView) {
+                objects.forEach(obj => {
+                    const f = obj.getField(x, y);
+                    const mag = Math.sqrt(f.x*f.x + f.y*f.y);
+                    if (mag > 0.5) {
+                        let col = obj.type === 'point' ? (obj.q > 0 ? '#ff4444' : '#2979ff') : (obj.v > 0 ? '#ff4444' : '#2979ff');
+                        drawArrow(ctx, x, y, f.x, f.y, mag, col, 0.6, 1.0);
+                    }
+                });
+            } else {
+                const f = getNetField(x, y);
+                if (f.mag > 0.5) drawArrow(ctx, x, y, f.x, f.y, f.mag, getColor(f.mag), 1.0, 2.0);
+            }
+        }
+    }
+}
+
+function drawArrow(ctx, x, y, vx, vy, mag, color, alpha, width) {
+    const angle = Math.atan2(vy, vx);
+    const len = Math.min(50, 8 + Math.log(mag + 1) * 8); 
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(len - 4, -3); ctx.lineTo(len - 4, 3); ctx.fill();
+    ctx.restore();
+}
+
+/** FIELD MODE */
+function drawFieldMode() {
+    ctx.lineWidth = 1.5;
+    let seeds = [];
+    const densityMult = parseFloat(document.getElementById('field-density').value);
+    labelFieldDens.innerText = densityMult.toFixed(1) + "x";
+
+    const hasPositive = objects.some(o => (o.type==='point' && o.q>0) || (o.type==='plate' && o.v>0));
+
+    objects.forEach(obj => {
+        let traceDir = 1; 
+        let generate = false;
+        let count = 0;
+
+        if (obj.type === 'point') {
+            if (obj.q > 0) {
+                generate = true;
+                count = Math.max(8, Math.floor(obj.q * 1.5 * densityMult));
+            } else if (!hasPositive && obj.q < 0) {
+                generate = true;
+                traceDir = -1; 
+                count = Math.max(8, Math.floor(Math.abs(obj.q) * 1.5 * densityMult));
+            }
+
+            if (generate) {
+                for(let i=0; i<count; i++) {
+                    const a = (Math.PI*2 * i)/count;
+                    seeds.push({ 
+                        x: obj.x + Math.cos(a)*(obj.r+2), 
+                        y: obj.y + Math.sin(a)*(obj.r+2),
+                        dir: traceDir
+                    });
+                }
+            }
+        } 
+        else if (obj.type === 'plate') {
+            const fieldStrength = Math.abs(obj.v) / obj.sep; 
+            const calcCount = Math.floor(obj.width * fieldStrength * 2.5 * densityMult);
+            count = Math.max(3, Math.min(60, calcCount));
+
+            if (obj.v > 0) {
+                generate = true;
+            } else if (!hasPositive && obj.v < 0) {
+                generate = true;
+                traceDir = -1;
+            }
+
+            if (generate) {
+                const safeWidth = obj.width * 0.9; 
+                const startX = obj.x - safeWidth/2;
+                const stepX = safeWidth / count;
+                
+                for(let i=0; i<=count; i++) {
+                    const px = startX + i*stepX;
+                    seeds.push({ x: px, y: obj.y - obj.sep/2 + 5, dir: traceDir });
+                    seeds.push({ x: px, y: obj.y + obj.sep/2 - 5, dir: traceDir });
+                }
+            }
+        }
+    });
+
+    seeds.forEach(p => {
+        let path = [];
+        let curr = {x: p.x, y: p.y};
+        path.push({x: curr.x, y: curr.y});
+        let lastDir = null; 
+
+        for(let i=0; i<600; i++) {
+            const f = getNetField(curr.x, curr.y);
+            
+            if (f.mag < 0.2) break; 
+
+            const stepSize = 4; 
+            const dirX = (f.x / f.mag) * p.dir; 
+            const dirY = (f.y / f.mag) * p.dir;
+
+            if (lastDir) {
+                const dot = lastDir.x * dirX + lastDir.y * dirY;
+                if (dot < 0.5) break; 
+            }
+            lastDir = {x: dirX, y: dirY};
+
+            curr.x += dirX * stepSize;
+            curr.y += dirY * stepSize;
+            path.push({x: curr.x, y: curr.y});
+
+            let hit = false;
+            for(let o of objects) {
+                const targetSign = p.dir === 1 ? -1 : 1;
+                if(o.type === 'point') {
+                    const isTarget = (o.q > 0 && targetSign === 1) || (o.q < 0 && targetSign === -1);
+                    if (isTarget && ((curr.x-o.x)**2 + (curr.y-o.y)**2 < o.r**2)) hit = true;
+                } else if (o.type === 'plate') {
+                    // BUG FIX: Only check for collision with the METAL (top/bottom), not the empty space outside.
+                    const halfW = o.width/2;
+                    const halfH = o.sep/2;
+                    // Check if x-coordinate is within the plate's width
+                    if (Math.abs(curr.x - o.x) < halfW) {
+                         // Check collision with Top or Bottom Electrode geometry
+                         // Top Plate is at y - halfH, Bottom Plate is at y + halfH
+                         if (Math.abs(Math.abs(curr.y - o.y) - halfH) < 5) hit = true;
+                    }
+                }
+            }
+            if(hit) break;
+            if (Math.abs(curr.x - camera.x) > canvas.width/camera.zoom + 200) break;
+            if (Math.abs(curr.y - camera.y) > canvas.height/camera.zoom + 200) break;
+        }
+
+        if (path.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            ctx.strokeStyle = '#4fc3f7'; 
+            for(let i=1; i<path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+
+            const totalSteps = path.length;
+            if (totalSteps < 50 && totalSteps > 2) {
+                const mid = Math.floor(totalSteps / 2);
+                drawPathArrow(ctx, path[mid-1], path[mid], p.dir);
+            } else {
+                for(let i=20; i<totalSteps; i+=40) {
+                    drawPathArrow(ctx, path[i-1], path[i], p.dir);
+                }
+            }
+        }
+    });
+}
+
+function drawPathArrow(ctx, p1, p2, traceDir) {
+    let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    if (traceDir === -1) {
+        angle += Math.PI; 
+    }
+    ctx.save();
+    ctx.translate(p2.x, p2.y);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(4, 0);
+    ctx.lineTo(-4, -3);
+    ctx.lineTo(-4, 3);
+    ctx.fill();
+    ctx.restore();
+}
+
+/** INTERACTION */
+function toWorld(sx, sy) {
+    return { x: (sx - canvas.width/2 - camera.x) / camera.zoom, y: (sy - canvas.height/2 - camera.y) / camera.zoom };
+}
+
+function onDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const m = toWorld(mx, my);
+
+    if (e.button === 2) { isPanning = true; lastMouse = {x: mx, y: my}; return; }
+
+    const hit = objects.find(o => {
+        if(o.type === 'point') return ((m.x-o.x)**2 + (m.y-o.y)**2) < (o.r + 5)**2;
+        return Math.abs(m.x - o.x) < o.width/2 && Math.abs(m.y - o.y) < o.sep/2 + 10;
+    });
+
+    if (hit) { selectObj(hit); draggingObj = hit; } 
+    else { isHoldingView = true; selectObj(null); }
+}
+
+function onMove(e) {
+    const mx = e.clientX - canvas.getBoundingClientRect().left;
+    const my = e.clientY - canvas.getBoundingClientRect().top;
+    if (isPanning) { camera.x += mx - lastMouse.x; camera.y += my - lastMouse.y; lastMouse = {x: mx, y: my}; }
+    else if (draggingObj) { const m = toWorld(mx, my); draggingObj.x = m.x; draggingObj.y = m.y; }
+}
+
+function onUp() { isPanning = false; draggingObj = null; isHoldingView = false; }
+function onWheel(e) { e.preventDefault(); const s = e.deltaY > 0 ? 0.9 : 1.1; camera.zoom = Math.max(0.3, Math.min(4, camera.zoom * s)); }
+
+/** UI */
+function selectObj(obj) {
+    selectedObj = obj;
+    uiProps.style.opacity = obj ? 1 : 0.5;
+    uiProps.style.pointerEvents = obj ? 'auto' : 'none';
+    if (!obj) return;
+
+    const isPoint = obj.type === 'point';
+    document.getElementById('prop-charge').style.display = isPoint ? 'block' : 'none';
+    document.getElementById('prop-plate').style.display = isPoint ? 'none' : 'block';
+
+    if (isPoint) { inputQ.value = obj.q; labelQ.innerText = obj.q > 0 ? "+"+obj.q : obj.q; } 
+    else { inputV.value = obj.v; inputD.value = obj.sep; labelV.innerText = obj.v; labelD.innerText = obj.sep; }
+}
+
+function updateObj() {
+    if (!selectedObj) return;
+    if (selectedObj.type === 'point') { selectedObj.q = parseInt(inputQ.value); labelQ.innerText = selectedObj.q > 0 ? "+"+selectedObj.q : selectedObj.q; }
+    else { selectedObj.v = parseInt(inputV.value); selectedObj.sep = parseInt(inputD.value); labelV.innerText = selectedObj.v; labelD.innerText = selectedObj.sep; }
+}
+
+function addPoint(q) { objects.push(new PointCharge((Math.random()-0.5)*50, (Math.random()-0.5)*50, q)); selectObj(objects[objects.length-1]); }
+function addPlate() { objects.push(new Plate(0, 0, 30)); selectObj(objects[objects.length-1]); }
+function deleteObj() { if (selectedObj) { objects = objects.filter(o => o !== selectedObj); selectObj(null); } }
+function clearAll() { objects = []; selectObj(null); }
+function setMode(m) { 
+    mode = m; 
+    document.getElementById('btn-vec').className = mode === 'vector' ? 'active' : ''; 
+    document.getElementById('btn-field').className = mode === 'field' ? 'active' : ''; 
+    uiVecSettings.style.display = mode === 'vector' ? 'block' : 'none'; 
+    uiFieldSettings.style.display = mode === 'field' ? 'block' : 'none'; 
+    draw();
+}
+function resetCamera() { camera = {x:0, y:0, zoom:1}; }
+
+init();
+</script>
+</body>
+</html>
