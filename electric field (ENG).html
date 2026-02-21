@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Field Simulator v11 (Responsive)</title>
+    <title>Electric Field Simulator v15 (Enhanced)</title>
     <style>
-        :root { --bg: #121212; --panel: #1e1e1e; --text: #e0e0e0; --accent: #4fc3f7; --danger: #ef5350; }
+        :root { --bg: #121212; --panel: #1e1e1e; --text: #e0e0e0; --accent: #4fc3f7; --danger: #ef5350; --success: #66bb6a; }
         body { 
             margin: 0; 
             background: var(--bg); 
             color: var(--text); 
             font-family: 'Segoe UI', sans-serif; 
             display: flex; 
-            flex-direction: row; /* Default: Side-by-side */
+            flex-direction: row; 
             height: 100vh; 
             overflow: hidden; 
             user-select: none; 
         }
         
-        /* SIDEBAR (Desktop Default) */
         #sidebar { 
             width: 320px; 
             background: var(--panel); 
@@ -30,35 +29,36 @@
             z-index: 10; 
             overflow-y: auto; 
             flex-shrink: 0;
+            -webkit-overflow-scrolling: touch; 
         }
 
-        /* MOBILE LAYOUT (Responsive) */
         @media (max-width: 700px) {
-            body {
-                flex-direction: column-reverse; /* Sidebar moves to bottom */
-            }
+            body { flex-direction: column-reverse; } 
             #sidebar { 
                 width: 100%; 
-                height: 40%; /* Take up bottom 40% of screen */
+                height: 45%; 
                 box-shadow: 0 -2px 10px rgba(0,0,0,0.5); 
                 padding: 10px;
                 box-sizing: border-box;
             }
-            #canvas-wrapper {
-                height: 60%; /* Canvas takes top 60% */
-            }
+            #canvas-wrapper { height: 55%; }
             h2 { font-size: 1rem; margin-bottom: 5px; }
             .control-group { padding: 8px; }
+            button { padding: 12px; } 
         }
 
-        h2 { margin: 0; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        h3 { margin: 5px 0; font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        h2 { margin: 0; color: var(--accent); font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        h3 { margin: 5px 0; font-size: 0.9rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
         .control-group { background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid #333; }
         
-        label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #ccc; margin-bottom: 4px; }
-        input[type=range] { width: 100%; margin: 5px 0; cursor: pointer; accent-color: var(--accent); height: 24px; /* Larger touch target */ }
+        label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #ccc; margin-bottom: 4px; }
+        input[type=range] { width: 100%; margin: 5px 0; cursor: pointer; accent-color: var(--accent); height: 24px; }
+        select { width: 100%; padding: 6px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; font-family: 'Segoe UI', sans-serif;}
         
-        button { width: 100%; padding: 10px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; cursor: pointer; margin-bottom: 5px; font-size: 0.9rem; transition: background 0.2s; }
+        .limit-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; font-size: 0.8rem; color: #ccc; }
+        .limit-row input { width: 45px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px; text-align: center; font-family: monospace;}
+        
+        button { width: 100%; padding: 10px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; cursor: pointer; margin-bottom: 5px; font-size: 0.85rem; transition: background 0.2s; font-family: 'Segoe UI', sans-serif; }
         button:hover { background: #444; }
         button.active { background: var(--accent); color: #000; font-weight: bold; border: none; }
         button.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
@@ -73,19 +73,20 @@
             overflow: hidden;
         }
         
-        #overlay { position: absolute; top: 10px; right: 10px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 6px; font-size: 0.8rem; line-height: 1.5; border: 1px solid #444; }
+        #overlay { position: absolute; top: 10px; right: 10px; pointer-events: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 6px; font-size: 0.9rem; line-height: 1.6; border: 1px solid #444; }
         .key { color: var(--accent); font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Field Simulator v11</h2>
+    <h2>Field Simulator v15</h2>
     <div class="control-group">
         <h3>View Mode</h3>
         <div class="row">
             <button id="btn-vec" class="active" onclick="setMode('vector')">Vector Mesh</button>
             <button id="btn-field" onclick="setMode('field')">Field Lines</button>
+            <button id="btn-traj" onclick="setMode('trajectory')">Trajectory</button>
         </div>
         
         <div id="vector-settings">
@@ -93,17 +94,30 @@
             <input type="range" id="density" min="25" max="100" value="40" step="5" oninput="draw()">
         </div>
         <div id="field-settings" style="display:none;">
-            <label>Field Line Density: <span id="field-dens-val">1.0x</span></label>
+            <label>Line Density: <span id="field-dens-val">1.0x</span></label>
             <input type="range" id="field-density" min="0.5" max="3.0" value="1.0" step="0.1" oninput="draw()">
+        </div>
+        
+        <div id="traj-settings" style="display:none;">
+            <label style="margin-top: 5px;">Background:</label>
+            <select id="traj-bg">
+                <option value="vector">Vector Mesh</option>
+                <option value="field">Field Lines</option>
+                <option value="blank">Blank</option>
+            </select>
+            <label>Test Charge (q): <span id="traj-q-val">10</span></label>
+            <input type="range" id="traj-q" min="-50" max="50" value="10" oninput="document.getElementById('traj-q-val').innerText=this.value">
+            <p style="font-size: 0.8rem; color: #888; margin: 5px 0;">👉 <b>Drag Backward</b> on empty space or <b>inside plates</b> to slingshot. Particles vanish on collision.</p>
+            <button class="danger" onclick="clearParticles()" style="margin-top: 5px;">Clear Particles</button>
         </div>
     </div>
 
     <div class="control-group">
         <h3>Add Source</h3>
         <div class="row">
-            <button onclick="addPoint(20)">+ Point</button>
-            <button onclick="addPoint(-20)">- Point</button>
-            <button onclick="addPlate()">Plate</button>
+            <button onclick="addPoint(20)">+ Point Charge</button>
+            <button onclick="addPoint(-20)">- Point Charge</button>
+            <button onclick="addPlate()">Parallel Plate</button>
         </div>
     </div>
 
@@ -111,15 +125,25 @@
         <h3>Selected Object</h3>
         <div id="prop-charge">
             <label>Charge (Q): <span id="val-q">0</span></label>
-            <input type="range" id="input-q" min="-50" max="50" oninput="updateObj()">
+            <input type="range" id="input-q" oninput="updateObj()">
         </div>
         <div id="prop-plate" style="display:none;">
             <label>Voltage (V): <span id="val-v">0</span></label>
-            <input type="range" id="input-v" min="-50" max="50" oninput="updateObj()">
+            <input type="range" id="input-v" oninput="updateObj()">
             <label>Separation (d): <span id="val-d">0</span></label>
-            <input type="range" id="input-d" min="30" max="200" oninput="updateObj()">
+            <input type="range" id="input-d" oninput="updateObj()">
+            <label>Length (L): <span id="val-l">0</span></label>
+            <input type="range" id="input-l" oninput="updateObj()">
         </div>
         <button class="danger" onclick="deleteObj()">Delete Selected</button>
+    </div>
+
+    <div class="control-group">
+        <h3>Parameter Limits</h3>
+        <div class="limit-row"><span>Charge (Q)</span><div>Min <input type="number" id="l-q-min" value="-50" onchange="updateLimits()"> Max <input type="number" id="l-q-max" value="50" onchange="updateLimits()"></div></div>
+        <div class="limit-row"><span>Voltage (V)</span><div>Min <input type="number" id="l-v-min" value="-50" onchange="updateLimits()"> Max <input type="number" id="l-v-max" value="50" onchange="updateLimits()"></div></div>
+        <div class="limit-row"><span>Sep (d)</span><div>Min <input type="number" id="l-d-min" value="30" onchange="updateLimits()"> Max <input type="number" id="l-d-max" value="1000" onchange="updateLimits()"></div></div>
+        <div class="limit-row"><span>Length (L)</span><div>Min <input type="number" id="l-l-min" value="50" onchange="updateLimits()"> Max <input type="number" id="l-l-max" value="1000" onchange="updateLimits()"></div></div>
     </div>
 
     <div class="control-group">
@@ -131,12 +155,15 @@
 <div id="canvas-wrapper">
     <canvas id="simCanvas"></canvas>
     <div id="overlay">
-        <span class="key">Drag</span> to Move<br>
-        <span class="key">Pinch</span> to Zoom<br>
+        <span class="key">Drag Objects</span> to Move<br>
+        <span class="key">Drag BG</span> to Pan Canvas<br>
+        <span class="key">Pinch/Scroll</span> to Zoom<br>
         <hr style="border: 0; border-top: 1px solid #555; margin: 5px 0;">
+        <span id="overlay-mode-hint">
         <b>Vector Mode:</b><br>
-        Hold background to<br>
-        see component vectors.
+        <span class="key">Click & Hold</span> background<br>
+        to inspect component vectors.
+        </span>
     </div>
 </div>
 
@@ -147,25 +174,33 @@ const ctx = canvas.getContext('2d');
 const k = 8000; 
 
 let objects = [];
+let testParticles = []; 
 let mode = 'vector'; 
 let camera = { x: 0, y: 0, zoom: 1 };
 let selectedObj = null;
 let draggingObj = null;
 let isPanning = false;
 let isHoldingView = false;
+let isAiming = false; 
+let aimStart = {x:0, y:0};
+let aimCurrent = {x:0, y:0};
 let lastMouse = { x: 0, y: 0 };
+let startPointerPos = { x: 0, y: 0 };
 let lastPinchDist = null; 
 
 // UI Elements
 const uiProps = document.getElementById('props-panel');
 const uiVecSettings = document.getElementById('vector-settings');
 const uiFieldSettings = document.getElementById('field-settings');
+const uiTrajSettings = document.getElementById('traj-settings');
 const inputQ = document.getElementById('input-q');
 const inputV = document.getElementById('input-v');
 const inputD = document.getElementById('input-d');
+const inputL = document.getElementById('input-l');
 const labelQ = document.getElementById('val-q');
 const labelV = document.getElementById('val-v');
 const labelD = document.getElementById('val-d');
+const labelL = document.getElementById('val-l');
 const labelDens = document.getElementById('dens-val');
 const labelFieldDens = document.getElementById('field-dens-val');
 
@@ -210,7 +245,7 @@ class Plate {
         this.y = y;
         this.v = v;
         this.sep = 80;
-        this.width = 160;
+        this.width = 160; 
     }
     draw(ctx) {
         const halfW = this.width/2;
@@ -240,13 +275,103 @@ class Plate {
         const halfW = this.width/2;
         const halfH = this.sep/2;
         
-        // IDEAL CAPACITOR: Field strictly inside
         if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
             return { x: 0, y: (this.v * 80) / this.sep };
         }
-        
-        // No Fringe Effect
         return {x:0, y:0};
+    }
+}
+
+class TestParticle {
+    constructor(x, y, vx, vy, q) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.q = q;
+        this.trail = [];
+        this.active = true;
+        this.color = q > 0 ? '#ff8888' : (q < 0 ? '#8888ff' : '#ffffff');
+    }
+    update() {
+        if (!this.active) return;
+        
+        if (this.trail.length === 0 || Math.hypot(this.x - this.trail[this.trail.length-1].x, this.y - this.trail[this.trail.length-1].y) > 3) {
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 250) this.trail.shift(); 
+        }
+
+        let F = getNetField(this.x, this.y);
+        
+        let forceScale = 0.05;
+        let ax = this.q * F.x * forceScale;
+        let ay = this.q * F.y * forceScale;
+
+        this.vx += ax;
+        this.vy += ay;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        for (let o of objects) {
+            if (o.type === 'point') {
+                if (Math.hypot(this.x - o.x, this.y - o.y) < o.r) {
+                    this.active = false; 
+                }
+            } else if (o.type === 'plate') {
+                const halfW = o.width/2;
+                const halfH = o.sep/2;
+                if (Math.abs(this.x - o.x) < halfW) {
+                     if (Math.abs(Math.abs(this.y - o.y) - halfH) < 5) {
+                         this.active = false;
+                     }
+                }
+            }
+        }
+        if (Math.abs(this.x - camera.x) > 4000 || Math.abs(this.y - camera.y) > 4000) this.active = false;
+    }
+    draw(ctx) {
+        if (this.trail.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(this.trail[0].x, this.trail[0].y);
+            for(let i=1; i<this.trail.length; i++) {
+                ctx.lineTo(this.trail[i].x, this.trail[i].y);
+            }
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6;
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+        
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 5, 0, Math.PI*2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        let vMag = Math.hypot(this.vx, this.vy);
+        if (vMag > 0.5) {
+            let vLen = Math.min(60, vMag * 5); 
+            let vAngle = Math.atan2(this.vy, this.vx);
+            let endX = this.x + Math.cos(vAngle) * vLen;
+            let endY = this.y + Math.sin(vAngle) * vLen;
+            
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = '#00ff00'; 
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - 6 * Math.cos(vAngle - Math.PI/6), endY - 6 * Math.sin(vAngle - Math.PI/6));
+            ctx.lineTo(endX - 6 * Math.cos(vAngle + Math.PI/6), endY - 6 * Math.sin(vAngle + Math.PI/6));
+            ctx.fillStyle = '#00ff00';
+            ctx.fill();
+        }
     }
 }
 
@@ -254,10 +379,12 @@ class Plate {
 function init() {
     window.addEventListener('resize', resize);
     resize();
+    updateLimits(); 
+    
+    // STARTUP SCENE: Two positive charges
     objects.push(new PointCharge(-100, 0, 20));
     objects.push(new PointCharge(100, 0, 20)); 
 
-    // Touch & Mouse
     canvas.addEventListener('mousedown', onPointerDown);
     window.addEventListener('mouseup', onPointerUp);
     window.addEventListener('mousemove', onPointerMove);
@@ -266,13 +393,12 @@ function init() {
 
     canvas.addEventListener('touchstart', onPointerDown, {passive: false});
     window.addEventListener('touchend', onPointerUp);
-    window.addEventListener('touchmove', onPointerMove, {passive: false});
+    canvas.addEventListener('touchmove', onPointerMove, {passive: false});
 
     requestAnimationFrame(loop);
 }
 
 function resize() {
-    // Dynamic resize based on the wrapper size
     const wrapper = document.getElementById('canvas-wrapper');
     canvas.width = wrapper.clientWidth;
     canvas.height = wrapper.clientHeight;
@@ -285,8 +411,42 @@ function loop() {
     ctx.translate(canvas.width/2 + camera.x, canvas.height/2 + camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
-    if (mode === 'vector') drawVectorMode();
-    else drawFieldMode();
+    if (mode === 'vector') {
+        drawVectorMode(1.0);
+    } else if (mode === 'field') {
+        drawFieldMode();
+    } else if (mode === 'trajectory') {
+        const bgChoice = document.getElementById('traj-bg').value;
+        if (bgChoice === 'vector') {
+            // Brighter vector background (0.8)
+            drawVectorMode(0.8); 
+        } else if (bgChoice === 'field') {
+            ctx.globalAlpha = 0.3; 
+            drawFieldMode();
+            ctx.globalAlpha = 1.0;
+        }
+
+        testParticles.forEach(p => p.update());
+        testParticles = testParticles.filter(p => p.active); 
+        testParticles.forEach(p => p.draw(ctx));
+
+        if (isAiming) {
+            ctx.beginPath();
+            ctx.moveTo(aimStart.x, aimStart.y);
+            ctx.lineTo(aimCurrent.x, aimCurrent.y);
+            ctx.strokeStyle = '#ffeb3b';
+            ctx.setLineDash([5,5]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            const qPreview = parseInt(document.getElementById('traj-q').value);
+            ctx.beginPath();
+            ctx.arc(aimStart.x, aimStart.y, 5, 0, Math.PI*2);
+            ctx.fillStyle = qPreview > 0 ? '#ff8888' : (qPreview < 0 ? '#8888ff' : '#ffffff');
+            ctx.fill();
+        }
+    }
 
     objects.forEach(o => o.draw(ctx));
     ctx.restore();
@@ -310,9 +470,9 @@ function getColor(mag, alpha=1) {
 }
 
 /** VECTOR MODE */
-function drawVectorMode() {
+function drawVectorMode(opacityMult = 1.0) {
     const density = parseInt(document.getElementById('density').value);
-    labelDens.innerText = density + "px";
+    if(opacityMult === 1.0) labelDens.innerText = density + "px"; 
     const viewL = -(canvas.width/2 + camera.x)/camera.zoom - 50;
     const viewR = (canvas.width/2 - camera.x)/camera.zoom + 50;
     const viewT = -(canvas.height/2 + camera.y)/camera.zoom - 50;
@@ -320,18 +480,18 @@ function drawVectorMode() {
 
     for (let x = Math.floor(viewL/density)*density; x < viewR; x += density) {
         for (let y = Math.floor(viewT/density)*density; y < viewB; y += density) {
-            if (isHoldingView) {
+            if (isHoldingView && mode === 'vector') {
                 objects.forEach(obj => {
                     const f = obj.getField(x, y);
                     const mag = Math.sqrt(f.x*f.x + f.y*f.y);
                     if (mag > 0.5) {
                         let col = obj.type === 'point' ? (obj.q > 0 ? '#ff4444' : '#2979ff') : (obj.v > 0 ? '#ff4444' : '#2979ff');
-                        drawArrow(ctx, x, y, f.x, f.y, mag, col, 0.6, 1.0);
+                        drawArrow(ctx, x, y, f.x, f.y, mag, col, 0.6 * opacityMult, 1.0);
                     }
                 });
             } else {
                 const f = getNetField(x, y);
-                if (f.mag > 0.5) drawArrow(ctx, x, y, f.x, f.y, f.mag, getColor(f.mag), 1.0, 2.0);
+                if (f.mag > 0.5) drawArrow(ctx, x, y, f.x, f.y, f.mag, getColor(f.mag, opacityMult), opacityMult, 2.0);
             }
         }
     }
@@ -359,7 +519,8 @@ function drawFieldMode() {
     const densityMult = parseFloat(document.getElementById('field-density').value);
     labelFieldDens.innerText = densityMult.toFixed(1) + "x";
 
-    const hasPositive = objects.some(o => (o.type==='point' && o.q>0) || (o.type==='plate' && o.v>0));
+    // Fix: Only check for POSITIVE POINTS
+    const hasPositivePoint = objects.some(o => o.type==='point' && o.q>0);
 
     objects.forEach(obj => {
         let traceDir = 1; 
@@ -370,7 +531,8 @@ function drawFieldMode() {
             if (obj.q > 0) {
                 generate = true;
                 count = Math.max(8, Math.floor(obj.q * 1.5 * densityMult));
-            } else if (!hasPositive && obj.q < 0) {
+            } else if (!hasPositivePoint && obj.q < 0) {
+                // If no positive points, generate negative lines (inward)
                 generate = true;
                 traceDir = -1; 
                 count = Math.max(8, Math.floor(Math.abs(obj.q) * 1.5 * densityMult));
@@ -390,11 +552,13 @@ function drawFieldMode() {
         else if (obj.type === 'plate') {
             const fieldStrength = Math.abs(obj.v) / obj.sep; 
             const calcCount = Math.floor(obj.width * fieldStrength * 2.5 * densityMult);
-            count = Math.max(3, Math.min(60, calcCount));
+            count = Math.max(3, Math.min(100, calcCount)); 
 
+            // Plate generates lines independently
             if (obj.v > 0) {
                 generate = true;
-            } else if (!hasPositive && obj.v < 0) {
+                traceDir = 1;
+            } else if (obj.v < 0) {
                 generate = true;
                 traceDir = -1;
             }
@@ -445,7 +609,6 @@ function drawFieldMode() {
                     const isTarget = (o.q > 0 && targetSign === 1) || (o.q < 0 && targetSign === -1);
                     if (isTarget && ((curr.x-o.x)**2 + (curr.y-o.y)**2 < o.r**2)) hit = true;
                 } else if (o.type === 'plate') {
-                    // Collision: METAL only
                     const halfW = o.width/2;
                     const halfH = o.sep/2;
                     if (Math.abs(curr.x - o.x) < halfW) {
@@ -497,7 +660,7 @@ function drawPathArrow(ctx, p1, p2, traceDir) {
     ctx.restore();
 }
 
-/** UNIFIED INTERACTION (MOUSE + TOUCH) */
+/** INTERACTION (MOUSE + TOUCH) */
 function toWorld(sx, sy) {
     return { x: (sx - canvas.width/2 - camera.x) / camera.zoom, y: (sy - canvas.height/2 - camera.y) / camera.zoom };
 }
@@ -526,6 +689,7 @@ function onPointerDown(e) {
     }
 
     const pos = getPointerPos(e);
+    startPointerPos = { x: pos.x, y: pos.y }; 
     const m = toWorld(pos.x, pos.y);
 
     if (e.button === 2) { 
@@ -537,11 +701,34 @@ function onPointerDown(e) {
     const hit = objects.find(o => {
         const hitMargin = e.type === 'touchstart' ? 30 : 10;
         if(o.type === 'point') return ((m.x-o.x)**2 + (m.y-o.y)**2) < (o.r + hitMargin)**2;
-        return Math.abs(m.x - o.x) < o.width/2 && Math.abs(m.y - o.y) < o.sep/2 + hitMargin;
+        
+        if(o.type === 'plate') {
+            // Allow clicking ONLY on metal parts, allowing shooting INSIDE
+            if (Math.abs(m.x - o.x) < o.width/2 + hitMargin) {
+                if (Math.abs(Math.abs(m.y - o.y) - o.sep/2) < 10 + hitMargin) return true;
+            }
+            return false;
+        }
     });
 
-    if (hit) { selectObj(hit); draggingObj = hit; } 
-    else { isHoldingView = true; selectObj(null); }
+    if (hit) { 
+        selectObj(hit); 
+        draggingObj = hit; 
+        isHoldingView = false;
+        isPanning = false;
+        isAiming = false;
+    } else { 
+        if (mode === 'trajectory') {
+            isAiming = true;
+            aimStart = { x: m.x, y: m.y };
+            aimCurrent = { x: m.x, y: m.y };
+        } else {
+            isHoldingView = true; 
+            isPanning = false;
+            lastMouse = {x: pos.x, y: pos.y}; 
+        }
+        selectObj(null); 
+    }
 }
 
 function onPointerMove(e) {
@@ -558,19 +745,37 @@ function onPointerMove(e) {
     }
 
     const pos = getPointerPos(e);
+    const m = toWorld(pos.x, pos.y);
+
+    if (isAiming) {
+        aimCurrent = { x: m.x, y: m.y };
+    } else if (isHoldingView && !draggingObj) {
+        if (Math.hypot(pos.x - startPointerPos.x, pos.y - startPointerPos.y) > 5) {
+            isHoldingView = false;
+            isPanning = true;
+        }
+    }
 
     if (isPanning) { 
         camera.x += pos.x - lastMouse.x; 
         camera.y += pos.y - lastMouse.y; 
         lastMouse = {x: pos.x, y: pos.y}; 
     } else if (draggingObj) { 
-        const m = toWorld(pos.x, pos.y); 
         draggingObj.x = m.x; 
         draggingObj.y = m.y; 
     }
 }
 
 function onPointerUp(e) {
+    if (isAiming) {
+        let q = parseInt(document.getElementById('traj-q').value);
+        let vx = (aimStart.x - aimCurrent.x) * 0.1; 
+        let vy = (aimStart.y - aimCurrent.y) * 0.1;
+        if (Math.hypot(vx, vy) > 0.5) {
+            testParticles.push(new TestParticle(aimStart.x, aimStart.y, vx, vy, q));
+        }
+        isAiming = false;
+    }
     isPanning = false; draggingObj = null; isHoldingView = false; lastPinchDist = null;
 }
 
@@ -580,7 +785,20 @@ function onWheel(e) {
     camera.zoom = Math.max(0.3, Math.min(4, camera.zoom * s)); 
 }
 
-/** UI */
+/** UI & LIMITS */
+function updateLimits() {
+    inputQ.min = document.getElementById('l-q-min').value;
+    inputQ.max = document.getElementById('l-q-max').value;
+    inputV.min = document.getElementById('l-v-min').value;
+    inputV.max = document.getElementById('l-v-max').value;
+    inputD.min = document.getElementById('l-d-min').value;
+    inputD.max = document.getElementById('l-d-max').value;
+    inputL.min = document.getElementById('l-l-min').value;
+    inputL.max = document.getElementById('l-l-max').value;
+    
+    if(selectedObj) selectObj(selectedObj); 
+}
+
 function selectObj(obj) {
     selectedObj = obj;
     uiProps.style.opacity = obj ? 1 : 0.5;
@@ -591,42 +809,59 @@ function selectObj(obj) {
     document.getElementById('prop-charge').style.display = isPoint ? 'block' : 'none';
     document.getElementById('prop-plate').style.display = isPoint ? 'none' : 'block';
 
-    if (isPoint) { inputQ.value = obj.q; labelQ.innerText = obj.q > 0 ? "+"+obj.q : obj.q; } 
-    else { inputV.value = obj.v; inputD.value = obj.sep; labelV.innerText = obj.v; labelD.innerText = obj.sep; }
+    if (isPoint) { 
+        inputQ.value = obj.q; 
+        labelQ.innerText = obj.q > 0 ? "+"+obj.q : obj.q; 
+    } else { 
+        inputV.value = obj.v; 
+        inputD.value = obj.sep; 
+        inputL.value = obj.width;
+        labelV.innerText = obj.v; 
+        labelD.innerText = obj.sep; 
+        labelL.innerText = obj.width;
+    }
 }
 
 function updateObj() {
     if (!selectedObj) return;
-    if (selectedObj.type === 'point') { selectedObj.q = parseInt(inputQ.value); labelQ.innerText = selectedObj.q > 0 ? "+"+selectedObj.q : selectedObj.q; }
-    else { selectedObj.v = parseInt(inputV.value); selectedObj.sep = parseInt(inputD.value); labelV.innerText = selectedObj.v; labelD.innerText = selectedObj.sep; }
+    if (selectedObj.type === 'point') { 
+        selectedObj.q = parseInt(inputQ.value); 
+        labelQ.innerText = selectedObj.q > 0 ? "+"+selectedObj.q : selectedObj.q; 
+    } else { 
+        selectedObj.v = parseInt(inputV.value); 
+        selectedObj.sep = parseInt(inputD.value); 
+        selectedObj.width = parseInt(inputL.value);
+        labelV.innerText = selectedObj.v; 
+        labelD.innerText = selectedObj.sep; 
+        labelL.innerText = selectedObj.width; 
+    }
 }
 
 function addPoint(q) { objects.push(new PointCharge((Math.random()-0.5)*50, (Math.random()-0.5)*50, q)); selectObj(objects[objects.length-1]); }
-function addPlate() { objects.push(new Plate(0, 0, 30)); selectObj(objects[objects.length-1]); }
+function addPlate() { objects.push(new Plate(0, 0, 80)); selectObj(objects[objects.length-1]); }
 function deleteObj() { if (selectedObj) { objects = objects.filter(o => o !== selectedObj); selectObj(null); } }
 function clearAll() { objects = []; selectObj(null); }
+function clearParticles() { testParticles = []; }
+
 function setMode(m) { 
     mode = m; 
     document.getElementById('btn-vec').className = mode === 'vector' ? 'active' : ''; 
     document.getElementById('btn-field').className = mode === 'field' ? 'active' : ''; 
-    uiVecSettings.style.display = mode === 'vector' ? 'block' : 'none'; 
+    document.getElementById('btn-traj').className = mode === 'trajectory' ? 'active' : ''; 
+
+    uiVecSettings.style.display = (mode === 'vector' || mode === 'trajectory') ? 'block' : 'none'; 
     uiFieldSettings.style.display = mode === 'field' ? 'block' : 'none'; 
-    draw();
+    uiTrajSettings.style.display = mode === 'trajectory' ? 'block' : 'none'; 
+
+    const hint = document.getElementById('overlay-mode-hint');
+    if (mode === 'trajectory') {
+        hint.innerHTML = "<b>Trajectory Mode:</b><br><span class='key'>Drag Backward</span> on background<br>to slingshot particles.";
+    } else {
+        hint.innerHTML = "<b>Vector Mode:</b><br><span class='key'>Click & Hold</span> background<br>to inspect component vectors.";
+    }
 }
+
 function resetCamera() { camera = {x:0, y:0, zoom:1}; }
-function draw() {
-    ctx.fillStyle = "#121212";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(canvas.width/2 + camera.x, canvas.height/2 + camera.y);
-    ctx.scale(camera.zoom, camera.zoom);
-
-    if (mode === 'vector') drawVectorMode();
-    else drawFieldMode();
-
-    objects.forEach(o => o.draw(ctx));
-    ctx.restore();
-}
 
 init();
 </script>
