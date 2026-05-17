@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inelastic Collision Simulation & Experiment Logger</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1400px; 
+            margin: 0 auto;
+        }
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #343a40;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+        }
+        .mode-selector select {
+            font-size: 1.1em;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .controls {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+        select, input[type="range"] {
+            margin-top: 5px;
+        }
+        
+        /* Layout */
+        .main-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        /* Left Side */
+        .simulation-area {
+            flex: 1 1 45%; 
+            min-width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas#simCanvas {
+            border: 1px solid #ccc;
+            width: 100%;
+            max-width: 600px;
+            background: #eef; 
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        /* Right Side */
+        .graph-area {
+            flex: 1 1 45%; 
+            min-width: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-container {
+            position: relative;
+            height: 350px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; }
+        
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+        .toggle-btn {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: 2px solid #007bff;
+            background: white;
+            color: #007bff;
+            font-size: 14px;
+        }
+        .toggle-btn.active {
+            background: #007bff;
+            color: white;
+        }
+        .toggle-left { border-radius: 4px 0 0 4px; }
+        .toggle-right { border-radius: 0 4px 4px 0; }
+
+        .formula-box {
+            background: #e9ecef;
+            padding: 15px 20px;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            font-size: 1.1em;
+            width: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 1.05em;
+        }
+        .results-table th, .results-table td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+        }
+        .results-table th { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div class="header-bar">
+            <h2>Inelastic Collision: Physics Simulator</h2>
+            <div class="mode-selector">
+                <label for="modeSelect">Operating Mode: </label>
+                <select id="modeSelect" onchange="switchMode()">
+                    <option value="sim">Simultaneous Comparison (3 Tracks)</option>
+                    <option value="exp">Experiment Logger (1 Track, Overlays)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="panel controls">
+            <div class="control-group">
+                <label for="mass">Trolley Mass (kg): <span id="massVal" style="color:#007bff;">2.0</span></label>
+                <input type="range" id="mass" min="0.5" max="5.0" step="0.1" value="2.0" oninput="document.getElementById('massVal').innerText=this.value">
+            </div>
+            <div class="control-group">
+                <label for="velocity">Initial Velocity (m/s): <span id="velVal" style="color:#007bff;">5.0</span></label>
+                <input type="range" id="velocity" min="1.0" max="10.0" step="0.5" value="5.0" oninput="document.getElementById('velVal').innerText=this.value">
+            </div>
+            
+            <div class="control-group" id="materialGroup" style="display: none; width: 220px;">
+                <label for="softnessSlider">Softness: <span id="softnessVal" style="color:rgb(127,0,127);">50%</span></label>
+                <input type="range" id="softnessSlider" min="0" max="100" step="1" value="50" oninput="updateSoftnessUI(this.value)">
+                <div style="display:flex; justify-content:space-between; font-size:0.8em; color:#555; margin-top: 2px;">
+                    <span style="color:red;">Hard (Red)</span>
+                    <span style="color:blue;">Soft (Blue)</span>
+                </div>
+            </div>
+
+            <div class="control-group" style="flex-direction: row; gap: 10px;">
+                <button id="btnStart" onclick="startSim()">Start Run</button>
+                <button id="btnReset" class="btn-danger" onclick="resetSim()">Reset All Data</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            
+            <div class="panel simulation-area">
+                <h3 id="canvasTitle" style="margin: 0 0 10px 0;">3-Track Simulation</h3>
+                
+                <canvas id="simCanvas" width="600" height="420"></canvas>
+                
+                <div class="formula-box">
+                    <strong>Impulse-Momentum Theorem:</strong> <span style="font-family: 'Times New Roman', serif; font-style: italic;">F Δt = Δp</span><br>
+                    <span style="font-size: 0.9em; color: #555;">(Inelastic collision: Trolley comes to a complete stop, so Δp = mv)</span>
+                </div>
+            </div>
+
+            <div class="panel graph-area">
+                
+                <div class="toggle-container" id="graphToggle">
+                    <button class="toggle-btn toggle-left active" onclick="setGraphMode('inst')" id="btnInst">Instantaneous Force (F-t)</button>
+                    <button class="toggle-btn toggle-right" onclick="setGraphMode('avg')" id="btnAvg">Average Force (F<sub>avg</sub>-t)</button>
+                </div>
+
+                <h3 id="graphTitle" style="margin-top:0; margin-bottom:5px; text-align:center;">Force-Time (F-t) Graph</h3>
+                
+                <div class="chart-container">
+                    <canvas id="chartCanvas"></canvas>
+                </div>
+
+                <table class="results-table" id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>Run / Material</th>
+                            <th>Δp (N·s)</th>
+                            <th>Δt (s)</th>
+                            <th>Avg F (N)</th>
+                            <th>Peak F (N)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        </tbody>
+                </table>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- Core Application State ---
+        let appMode = 'sim'; // 'sim' or 'exp'
+        let currentGraphMode = 'inst'; // 'inst' or 'avg'
+        let isPlaying = false;
+        let animationId;
+        let globalTime = 0;
+        let runCounter = 0;
+        
+        // --- Physics & Canvas Constants ---
+        const barrierX = 450;
+        const trolleyWidth = 60;
+        const contactPoint = barrierX - trolleyWidth;
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Presets for Simultaneous Mode
+        const simMaterials = {
+            soft: { name: 'Soft (Blue)', color: 'rgb(0,0,255)', duration: 0.60, maxCompDist: 25 },
+            medium: { name: 'Medium (Purple)', color: 'rgb(127,0,127)', duration: 0.325, maxCompDist: 13.5 },
+            hard: { name: 'Hard (Red)', color: 'rgb(255,0,0)', duration: 0.05, maxCompDist: 2 }
+        };
+
+        let allTrolleys = []; 
+        let activeTrolleys = []; 
+
+        // --- Chart.js Setup ---
+        const ctxChart = document.getElementById('chartCanvas').getContext('2d');
+        const ftChart = new Chart(ctxChart, {
+            type: 'line',
+            data: { datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false, 
+                scales: {
+                    x: { 
+                        type: 'linear', 
+                        title: { display: true, text: 'Time (s)' },
+                        min: 0
+                    }, 
+                    y: { 
+                        title: { display: true, text: 'Force (N)' }, 
+                        min: 0, 
+                        suggestedMax: 100 
+                    }
+                },
+                plugins: {
+                    tooltip: { enabled: true }
+                }
+            }
+        });
+
+        function hexToRgba(rgbStr, alpha) {
+            return rgbStr.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+        }
+
+        // --- UI & Mode Management ---
+        function switchMode() {
+            appMode = document.getElementById('modeSelect').value;
+            document.getElementById('materialGroup').style.display = appMode === 'exp' ? 'flex' : 'none';
+            document.getElementById('canvasTitle').innerText = appMode === 'exp' ? 'Experiment Viewer (Current Run)' : '3-Track Simulation';
+            resetSim(); 
+        }
+
+        function updateSoftnessUI(val) {
+            let r = Math.round(255 * (1 - val/100));
+            let b = Math.round(255 * (val/100));
+            let label = document.getElementById('softnessVal');
+            label.innerText = val + "%";
+            label.style.color = `rgb(${r}, 0, ${b})`;
+        }
+
+        function setGraphMode(mode) {
+            currentGraphMode = mode;
+            document.getElementById('btnInst').classList.toggle('active', mode === 'inst');
+            document.getElementById('btnAvg').classList.toggle('active', mode === 'avg');
+
+            // Swap datasets completely to avoid Chart.js strikethrough logic
+            let activeSets = [];
+            allTrolleys.forEach(t => {
+                activeSets.push(mode === 'inst' ? t.dsInst : t.dsAvg);
+            });
+            ftChart.data.datasets = activeSets;
+
+            // Update Titles
+            if (mode === 'inst') {
+                document.getElementById('graphTitle').innerHTML = "Instantaneous Force-Time (F-t)";
+            } else {
+                document.getElementById('graphTitle').innerHTML = "Average Force-Time (F<sub>avg</sub>-t) <br><span style='font-size:0.7em; color:#d9534f;'>(Perfect Rectangles - Area matches F-t exactly)</span>";
+            }
+            ftChart.update();
+        }
+
+        // --- Trolley Factory ---
+        function createTrolley(simKey = null) {
+            runCounter++;
+            let mass = parseFloat(document.getElementById('mass').value);
+            let velocity = parseFloat(document.getElementById('velocity').value);
+            let mat;
+
+            if (appMode === 'sim') {
+                mat = simMaterials[simKey];
+            } else {
+                // Determine material dynamically from Slider
+                let softVal = parseFloat(document.getElementById('softnessSlider').value) / 100;
+                let dur = 0.05 + (0.60 - 0.05) * softVal; // 0.05s to 0.60s
+                let compDist = 2 + (25 - 2) * softVal; // 2px to 25px visual compression
+                
+                let r = Math.round(255 * (1 - softVal));
+                let b = Math.round(255 * softVal);
+                
+                mat = {
+                    name: `Run ${runCounter}`,
+                    color: `rgb(${r}, 0, ${b})`,
+                    duration: dur,
+                    maxCompDist: compDist
+                };
+            }
+            
+            // INELASTIC Collision Physics: Trolley stops completely. Delta p = m * v
+            let dp = mass * velocity;
+            // Area under sin^2 curve is F_peak * T / 2. So F_peak = 2*dp / T
+            let peak = (2 * dp) / mat.duration; 
+            // Average force is simply dp / T
+            let avg = dp / mat.duration;
+
+            let trolley = {
+                runId: runCounter,
+                name: mat.name,
+                color: mat.color,
+                duration: mat.duration,
+                maxCompDist: mat.maxCompDist,
+                mass: mass,
+                vel: velocity,
+                dp: dp,
+                peakForce: peak,
+                avgForce: avg,
+                
+                x: 50,
+                comp: 0,
+                state: 'moving_fwd',
+                colStartTime: 0,
+                currentForce: 0,
+                prevState: 'ready' 
+            };
+
+            // Dataset: Instantaneous
+            trolley.dsInst = {
+                label: trolley.name + ' Inst.',
+                data: [], 
+                borderColor: mat.color,
+                backgroundColor: hexToRgba(mat.color, 0.2),
+                fill: false,
+                tension: 0.2,
+                pointRadius: 0
+            };
+
+            // Dataset: Average
+            trolley.dsAvg = {
+                label: trolley.name + ' Avg.',
+                data: [], 
+                borderColor: mat.color,
+                backgroundColor: hexToRgba(mat.color, 0.3),
+                fill: false,
+                tension: 0, 
+                pointRadius: 0
+            };
+
+            return trolley;
+        }
+
+        // --- Core Simulation Logic ---
+        function startSim() {
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('modeSelect').disabled = true;
+
+            globalTime = 0;
+            activeTrolleys = [];
+
+            if (appMode === 'sim') {
+                allTrolleys = [];
+                runCounter = 0;
+                activeTrolleys.push(createTrolley('soft'));
+                activeTrolleys.push(createTrolley('medium'));
+                activeTrolleys.push(createTrolley('hard'));
+            } else {
+                activeTrolleys.push(createTrolley());
+            }
+
+            // Register new trolleys to history
+            activeTrolleys.forEach(t => allTrolleys.push(t));
+
+            // Force Chart to load the correct datasets based on mode
+            setGraphMode(currentGraphMode);
+
+            let maxPeak = Math.max(...allTrolleys.map(t => t.peakForce));
+            ftChart.options.scales.y.suggestedMax = maxPeak * 1.1;
+
+            isPlaying = true;
+            update();
+        }
+
+        function update() {
+            if (!isPlaying) return;
+            globalTime += 0.016; 
+            let anyMoving = false;
+
+            activeTrolleys.forEach(t => {
+                t.prevState = t.state;
+
+                if (t.state === 'moving_fwd') {
+                    anyMoving = true;
+                    t.x += t.vel * 0.8; 
+                    if (t.x >= contactPoint) {
+                        t.state = 'colliding';
+                        t.x = contactPoint;
+                        t.colStartTime = globalTime;
+                    }
+                } 
+                else if (t.state === 'colliding') {
+                    anyMoving = true;
+                    let timeInCol = globalTime - t.colStartTime;
+                    
+                    if (timeInCol <= t.duration) {
+                        let sinValue = Math.sin(Math.PI * timeInCol / t.duration);
+                        t.currentForce = t.peakForce * (sinValue * sinValue);
+                        t.comp = t.maxCompDist * (t.currentForce / t.peakForce);
+                        t.x = contactPoint + t.comp; 
+                    } else {
+                        t.state = 'stopped'; // Immediately stops for inelastic collision
+                        t.currentForce = 0;
+                        t.comp = 0; 
+                        t.x = contactPoint; 
+                    }
+                }
+                else if (t.state === 'stopped') {
+                    // Provide a 0.5s buffer after collision to let graph plot zeros
+                    if (globalTime - t.colStartTime < t.duration + 0.5) {
+                        anyMoving = true; 
+                    }
+                }
+
+                // Dynamic Graphing Updates
+                t.dsInst.data.push({ x: globalTime, y: t.currentForce });
+
+                if (t.prevState === 'moving_fwd' && t.state === 'colliding') {
+                    t.dsAvg.data.push({ x: globalTime, y: 0 });
+                    t.dsAvg.data.push({ x: globalTime, y: t.avgForce });
+                } 
+                else if (t.prevState === 'colliding' && t.state === 'stopped') {
+                    t.dsAvg.data.push({ x: globalTime, y: t.avgForce });
+                    t.dsAvg.data.push({ x: globalTime, y: 0 });
+                } 
+                else if (t.state === 'colliding') {
+                    t.dsAvg.data.push({ x: globalTime, y: t.avgForce });
+                } 
+                else {
+                    t.dsAvg.data.push({ x: globalTime, y: 0 });
+                }
+            });
+
+            if (Math.random() < 0.5) ftChart.update();
+            drawScene();
+
+            if (!anyMoving) {
+                isPlaying = false;
+                document.getElementById('btnStart').disabled = false;
+                document.getElementById('modeSelect').disabled = false;
+                
+                activeTrolleys.forEach(t => {
+                    t.dsInst.fill = true;
+                    t.dsAvg.fill = true;
+                });
+                ftChart.update();
+                updateTable();
+            } else {
+                animationId = requestAnimationFrame(update);
+            }
+        }
+
+        // --- Canvas Rendering ---
+        function drawSystem(context, trolley, yOffset) {
+            context.save();
+            context.translate(0, yOffset);
+
+            context.fillStyle = "#888";
+            context.fillRect(0, 40, 600, 10);
+
+            context.fillStyle = trolley.color;
+            context.font = "bold 16px Arial";
+            context.fillText(appMode === 'sim' ? trolley.name : "Active Material", 10, -20);
+
+            context.beginPath();
+            context.moveTo(barrierX + 40, -40); 
+            context.lineTo(barrierX + trolley.comp, -40); 
+            
+            if (trolley.comp > 0.5) {
+                context.quadraticCurveTo(barrierX + trolley.comp * 1.5, 0, barrierX + trolley.comp, 40);
+            } else {
+                context.lineTo(barrierX, 40);
+            }
+            context.lineTo(barrierX + 40, 40); 
+            context.fill();
+            
+            context.fillStyle = "#333";
+            context.fillRect(barrierX + 40, -40, 20, 80);
+
+            context.fillStyle = "#007bff";
+            context.fillRect(trolley.x, 0, trolleyWidth, 40);
+            
+            context.fillStyle = "#222";
+            context.beginPath(); context.arc(trolley.x + 15, 40, 10, 0, Math.PI * 2); context.fill();
+            context.beginPath(); context.arc(trolley.x + 45, 40, 10, 0, Math.PI * 2); context.fill();
+
+            // Arrow only drawn when moving forward
+            if (trolley.state === 'moving_fwd') {
+                context.strokeStyle = "red";
+                context.lineWidth = 3;
+                context.beginPath();
+                let arrowY = -15;
+                let arrowStartX = trolley.x + 30;
+                let arrowEndX = trolley.x + 60;
+                context.moveTo(arrowStartX, arrowY);
+                context.lineTo(arrowEndX, arrowY);
+                context.lineTo(arrowEndX - 10, arrowY - 5);
+                context.moveTo(arrowEndX, arrowY);
+                context.lineTo(arrowEndX - 10, arrowY + 5);
+                context.stroke();
+            }
+            context.restore();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (activeTrolleys.length > 0) {
+                let offsets = appMode === 'sim' ? [80, 220, 360] : [220];
+                activeTrolleys.forEach((t, i) => drawSystem(ctx, t, offsets[i]));
+            } else {
+                if (appMode === 'sim') {
+                    drawSystem(ctx, {name: simMaterials.soft.name, color: simMaterials.soft.color, comp: 0, x: 50, state: 'ready'}, 80);
+                    drawSystem(ctx, {name: simMaterials.medium.name, color: simMaterials.medium.color, comp: 0, x: 50, state: 'ready'}, 220);
+                    drawSystem(ctx, {name: simMaterials.hard.name, color: simMaterials.hard.color, comp: 0, x: 50, state: 'ready'}, 360);
+                } else {
+                    let softVal = parseFloat(document.getElementById('softnessSlider').value) / 100;
+                    let r = Math.round(255 * (1 - softVal));
+                    let b = Math.round(255 * softVal);
+                    drawSystem(ctx, {name: '', color: `rgb(${r}, 0, ${b})`, comp: 0, x: 50, state: 'ready'}, 220);
+                }
+            }
+        }
+
+        // --- Data Table Rendering ---
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            allTrolleys.forEach(t => {
+                let tr = document.createElement('tr');
+                tr.style.fontWeight = "bold";
+                
+                // Color circle generation
+                let matContent = appMode === 'sim' 
+                    ? `<span style="color:${t.color}">${t.name}</span>` 
+                    : `Run ${t.runId} <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${t.color}; margin-left:5px; vertical-align:middle; border:1px solid #666;"></span>`;
+                    
+                tr.innerHTML = `
+                    <td>${matContent}</td>
+                    <td>${t.dp.toFixed(1)}</td>
+                    <td>${t.duration.toFixed(2)}</td>
+                    <td>${t.avgForce.toFixed(1)}</td>
+                    <td>${t.peakForce.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function resetSim() {
+            cancelAnimationFrame(animationId);
+            isPlaying = false;
+            
+            allTrolleys = [];
+            activeTrolleys = [];
+            runCounter = 0;
+            globalTime = 0;
+            
+            ftChart.data.datasets = [];
+            ftChart.update();
+            updateTable(); 
+            
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('modeSelect').disabled = false;
+            drawScene();
+        }
+
+        // Initialize App
+        setGraphMode('inst');
+        drawScene();
+    </script>
+</body>
+</html>
