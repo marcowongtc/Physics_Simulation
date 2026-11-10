@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heating Curve of Clean, Dirty & Filtered Water | 清水、污水與過濾水加熱曲線</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f9f9f9; position: relative; }
+        
+        /* Teacher Signature */
+        .teacher-signature { position: absolute; top: 10px; right: 20px; font-weight: bold; color: #555; text-align: right; font-size: 1.1em; }
+        
+        h2 { text-align: center; color: #333; margin-top: 30px; }
+        .container { display: flex; flex-wrap: wrap; gap: 20px; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex: 1; min-width: 380px; }
+        
+        /* Table Styles */
+        .table-container { max-height: 400px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #ddd; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; font-size: 0.9em; }
+        th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 1; }
+        input[type="number"] { width: 60px; padding: 4px; text-align: center; }
+        input[type="text"].student-info { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        /* Buttons */
+        .btn { padding: 8px 12px; margin: 5px 5px 5px 0; cursor: pointer; border: none; border-radius: 4px; background-color: #0056b3; color: white; transition: 0.3s; font-size: 0.9em; }
+        .btn:hover { background-color: #004494; }
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #218838; }
+        
+        /* Layout & Animation Area Styles */
+        .visualization-wrapper { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 50px; margin-top: 20px; }
+        .chart-container { position: relative; height: 650px; width: 450px; max-width: 100%; }
+        .animation-side { display: flex; flex-direction: column; align-items: center; }
+        
+        .apparatus-area { display: flex; justify-content: center; align-items: center; margin-top: 30px; height: 250px; gap: 15px; }
+        .setup { display: flex; flex-direction: column; align-items: center; width: 100px; text-align: center; }
+        canvas.thermometer { border: 2px solid #555; border-radius: 15px 15px 0 0; background-color: #eef; }
+        .comparison { font-size: 2.5em; font-weight: bold; color: #333; width: 30px; text-align: center; }
+        .controls { display: flex; align-items: center; gap: 10px; font-size: 0.9em; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        
+        @media (max-width: 800px) {
+            .teacher-signature { position: static; text-align: center; margin-bottom: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="teacher-signature">Marco Wong 黃子駿老師</div>
+
+<h2>Heating Curve Experiment<br><span style="font-size: 0.8em; color: #555;">加熱曲線實驗</span></h2>
+
+<div class="container">
+    <!-- Data Input Panel -->
+    <div class="panel">
+        <h3>Data Entry / 數據輸入</h3>
+        
+        <input type="text" id="studentInfo" class="student-info" placeholder="Name, Class, Class No., Group No. / 姓名, 班別, 學號, 組別 (e.g. 4A 01 Gp2 Chan Tai Man)">
+        
+        <p style="font-size: 0.85em; color: #666; margin-top: 0;">* Tip: You can copy and paste data directly from Excel! / 提示：可以直接從 Excel 複製並貼上數據！</p>
+        
+        <div class="table-container">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>Time (s)<br>時間 (秒)</th>
+                        <th>Clean Water (°C)<br>清水 (°C)</th>
+                        <th>Dirty Water (°C)<br>污水 (°C)</th>
+                        <th>Filtered Water (°C)<br>過濾水 (°C)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be generated here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <button class="btn" onclick="addRow()">Add Next Reading / 新增數據 (+20s)</button>
+        <br><br>
+        <button class="btn" onclick="exportCSV()">Export Data / 匯出數據 (CSV)</button>
+        <button class="btn" onclick="exportChart()">Export Graph / 匯出圖表 (PNG)</button>
+    </div>
+
+    <!-- Visualization Panel -->
+    <div class="panel" style="flex: 2;">
+        <h3>Graph & Replay / 圖表與回放</h3>
+        
+        <div class="visualization-wrapper">
+            <!-- Left Side: Graph -->
+            <div class="chart-container">
+                <canvas id="myChart"></canvas>
+            </div>
+            
+            <!-- Right Side: Animation -->
+            <div class="animation-side">
+                <div class="controls">
+                    <button class="btn btn-success" id="playBtn" onclick="togglePlay()">Play Animation / 播放動畫</button>
+                    <label for="speed">Speed / 速度:</label>
+                    <select id="speed">
+                        <option value="1000">1x</option>
+                        <option value="500">2x</option>
+                        <option value="200" selected>5x</option>
+                        <option value="100">10x</option>
+                    </select>
+                    <span id="currentTime" style="font-weight: bold; min-width: 120px; margin-left: 10px;">Time / 時間: 0 s</span>
+                </div>
+
+                <div class="apparatus-area">
+                    <div class="setup">
+                        <h4 style="margin-bottom: 5px; color: blue; font-size: 0.9em;">Clean Water<br>清水</h4>
+                        <canvas id="thermoClean" width="40" height="200" class="thermometer"></canvas>
+                        <div id="tempCleanDisplay" style="margin-top: 5px; font-weight: bold; color: blue;">0 °C</div>
+                    </div>
+                    
+                    <div id="comparisonSymbol1" class="comparison">=</div>
+                    
+                    <div class="setup">
+                        <h4 style="margin-bottom: 5px; color: #8b4513; font-size: 0.9em;">Dirty Water<br>污水</h4>
+                        <canvas id="thermoDirty" width="40" height="200" class="thermometer"></canvas>
+                        <div id="tempDirtyDisplay" style="margin-top: 5px; font-weight: bold; color: #8b4513;">0 °C</div>
+                    </div>
+
+                    <div id="comparisonSymbol2" class="comparison">=</div>
+
+                    <div class="setup">
+                        <h4 style="margin-bottom: 5px; color: #28a745; font-size: 0.9em;">Filtered Water<br>過濾水</h4>
+                        <canvas id="thermoFiltered" width="40" height="200" class="thermometer"></canvas>
+                        <div id="tempFilteredDisplay" style="margin-top: 5px; font-weight: bold; color: #28a745;">0 °C</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let time = 0;
+    const interval = 20;
+    let chart;
+    let isPlaying = false;
+    let playInterval;
+    let playIndex = 0;
+    
+    // Arrays to store full data during animation
+    let fullLabels = [], fullClean = [], fullDirty = [], fullFiltered = [];
+
+    // Triggered automatically on any input change
+    function handleInput() {
+        if (isPlaying) return; // Prevent interference if they type during animation
+        playIndex = 0; // Reset animation tracker
+        updateGraph();
+    }
+
+    // Initialize Table with 3 inputs in new order
+    function addRow() {
+        const tbody = document.querySelector('#dataTable tbody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${time}</td>
+            <td><input type="number" class="clean" step="1" oninput="handleInput()"></td>
+            <td><input type="number" class="dirty" step="1" oninput="handleInput()"></td>
+            <td><input type="number" class="filtered" step="1" oninput="handleInput()"></td>
+        `;
+        tbody.appendChild(tr);
+        time += interval;
+    }
+
+    // Excel Paste Functionality
+    document.addEventListener('paste', function(e) {
+        if(e.target.tagName !== 'INPUT' || e.target.type !== 'number') return;
+        
+        e.preventDefault();
+        let paste = (e.clipboardData || window.clipboardData).getData('text');
+        let rows = paste.split(/\r?\n/);
+        
+        let startCell = e.target.parentElement;
+        let startRow = startCell.parentElement;
+        let startColIndex = Array.from(startRow.children).indexOf(startCell);
+        let tableRows = Array.from(document.querySelectorAll('#dataTable tbody tr'));
+        let startRowIndex = tableRows.indexOf(startRow);
+        
+        for (let i = 0; i < rows.length; i++) {
+            if (!rows[i].trim()) continue;
+            let cells = rows[i].split('\t');
+            
+            if (startRowIndex + i < tableRows.length) {
+                let targetRow = tableRows[startRowIndex + i];
+                for (let j = 0; j < cells.length; j++) {
+                    let targetCellIndex = startColIndex + j;
+                    if (targetCellIndex < targetRow.children.length) {
+                        let input = targetRow.children[targetCellIndex].querySelector('input');
+                        if (input) {
+                            input.value = cells[j].trim();
+                        }
+                    }
+                }
+            }
+        }
+        handleInput(); // Auto-update after pasting
+    });
+
+    function extractFullData() {
+        const rows = document.querySelectorAll('#dataTable tbody tr');
+        fullLabels = []; fullClean = []; fullDirty = []; fullFiltered = [];
+        
+        rows.forEach(row => {
+            fullLabels.push(row.cells[0].innerText);
+            let valClean = parseFloat(row.querySelector('.clean').value);
+            let valDirty = parseFloat(row.querySelector('.dirty').value);
+            let valFiltered = parseFloat(row.querySelector('.filtered').value);
+            
+            fullClean.push(isNaN(valClean) ? null : valClean);
+            fullDirty.push(isNaN(valDirty) ? null : valDirty);
+            fullFiltered.push(isNaN(valFiltered) ? null : valFiltered);
+        });
+    }
+
+    // Initialize Chart.js with 3 datasets in new order
+    function initChart() {
+        const ctx = document.getElementById('myChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [
+                { label: 'Clean Water / 清水', borderColor: 'blue', backgroundColor: 'blue', data: [], fill: false, tension: 0 },
+                { label: 'Dirty Water / 污水', borderColor: '#8b4513', backgroundColor: '#8b4513', data: [], fill: false, tension: 0 },
+                { label: 'Filtered Water / 過濾水', borderColor: '#28a745', backgroundColor: '#28a745', data: [], fill: false, tension: 0 }
+            ]},
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    x: { title: { display: true, text: 'Time / 時間 (s)' }, grid: { display: false } },
+                    y: { title: { display: true, text: 'Temperature / 溫度 (°C)' }, grid: { display: false }, min: 20, max: 110 }
+                },
+                animation: { duration: 0 }
+            }
+        });
+    }
+
+    // Standard auto-update for typing
+    function updateGraph() {
+        extractFullData();
+        chart.data.labels = fullLabels;
+        chart.data.datasets[0].data = fullClean;
+        chart.data.datasets[1].data = fullDirty;
+        chart.data.datasets[2].data = fullFiltered;
+        chart.update();
+    }
+
+    function drawThermometer(canvasId, temp, liquidColor) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const minTemp = 20, maxTemp = 110;
+        let t = isNaN(temp) || temp === null ? minTemp : Math.max(minTemp, Math.min(temp, maxTemp));
+        let fillHeight = ((t - minTemp) / (maxTemp - minTemp)) * (canvas.height - 20);
+        
+        ctx.fillStyle = liquidColor;
+        ctx.fillRect(10, canvas.height - fillHeight, 20, fillHeight);
+    }
+
+    // Helper to compare values
+    function getComparisonSymbol(val1, val2) {
+        if (val1 === null || val2 === null) return "?";
+        if (val1 > val2) return ">";
+        if (val1 < val2) return "<";
+        return "=";
+    }
+
+    // Point-by-point Animation
+    function togglePlay() {
+        const btn = document.getElementById('playBtn');
+        if (isPlaying) {
+            clearInterval(playInterval);
+            btn.innerText = "Play Animation / 播放動畫";
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-success');
+            isPlaying = false;
+        } else {
+            const speed = parseInt(document.getElementById('speed').value);
+            btn.innerText = "Pause Animation / 暫停動畫";
+            btn.classList.remove('btn-success');
+            btn.style.backgroundColor = "#dc3545";
+            isPlaying = true;
+            
+            // If starting from the beginning, wipe chart and prepare to draw point-by-point
+            if (playIndex === 0) {
+                extractFullData();
+                chart.data.labels = [];
+                chart.data.datasets[0].data = [];
+                chart.data.datasets[1].data = [];
+                chart.data.datasets[2].data = [];
+                chart.update();
+            }
+            
+            playInterval = setInterval(() => {
+                // End of data reached
+                if (playIndex >= fullLabels.length) {
+                    togglePlay(); 
+                    playIndex = 0; // Reset for next time
+                    return;
+                }
+                
+                let t = fullLabels[playIndex];
+                let tempClean = fullClean[playIndex];
+                let tempDirty = fullDirty[playIndex];
+                let tempFiltered = fullFiltered[playIndex];
+                
+                // Push next data point to the graph
+                chart.data.labels.push(t);
+                chart.data.datasets[0].data.push(tempClean);
+                chart.data.datasets[1].data.push(tempDirty);
+                chart.data.datasets[2].data.push(tempFiltered);
+                chart.update();
+                
+                // Update UI readouts
+                document.getElementById('currentTime').innerText = `Time / 時間: ${t} s`;
+                document.getElementById('tempCleanDisplay').innerText = (tempClean !== null ? tempClean : "--") + " °C";
+                document.getElementById('tempDirtyDisplay').innerText = (tempDirty !== null ? tempDirty : "--") + " °C";
+                document.getElementById('tempFilteredDisplay').innerText = (tempFiltered !== null ? tempFiltered : "--") + " °C";
+                
+                // Update Thermometers in new order
+                drawThermometer('thermoClean', tempClean, 'blue');
+                drawThermometer('thermoDirty', tempDirty, '#8b4513');       // Brown
+                drawThermometer('thermoFiltered', tempFiltered, '#28a745'); // Green
+                
+                // Update Symbols based on new sequence
+                document.getElementById('comparisonSymbol1').innerText = getComparisonSymbol(tempClean, tempDirty);
+                document.getElementById('comparisonSymbol2').innerText = getComparisonSymbol(tempDirty, tempFiltered);
+                
+                playIndex++;
+            }, speed);
+        }
+    }
+
+    // Export Functions
+    function exportCSV() {
+        const studentInfo = document.getElementById('studentInfo').value.replace(/,/g, ' '); 
+        const rows = document.querySelectorAll('#dataTable tr');
+        let csvContent = `Student Info: ${studentInfo}\n\n`;
+        
+        rows.forEach(row => {
+            let rowData = [];
+            let cells = row.querySelectorAll('th, td');
+            cells.forEach(cell => {
+                let input = cell.querySelector('input');
+                let text = input ? input.value : cell.innerText.replace(/\n/g, ' ');
+                rowData.push(text);
+            });
+            csvContent += rowData.join(",") + "\n";
+        });
+        
+        const bom = "\uFEFF";
+        const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "heating_curve_data.csv";
+        link.click();
+    }
+
+    function exportChart() {
+        // If animation was incomplete, force graph to update to show all points before exporting
+        if (playIndex > 0 && playIndex < fullLabels.length) {
+            updateGraph();
+            playIndex = 0;
+        }
+
+        const chartCanvas = document.getElementById('myChart');
+        const studentInfo = document.getElementById('studentInfo').value || "Anonymous / 匿名";
+        
+        const exportCanvas = document.createElement('canvas');
+        const ctx = exportCanvas.getContext('2d');
+        
+        exportCanvas.width = chartCanvas.width;
+        exportCanvas.height = chartCanvas.height + 60; 
+        
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        
+        ctx.fillStyle = 'black';
+        ctx.font = 'bold 16px "Segoe UI", Tahoma, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("Student / 學生: " + studentInfo, exportCanvas.width / 2, 30);
+        
+        ctx.drawImage(chartCanvas, 0, 50);
+        
+        const link = document.createElement('a');
+        link.download = 'heating_curve_graph.png';
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    window.onload = () => {
+        for(let i=0; i<=20; i++) addRow(); // 0 to 400s
+        initChart();
+        drawThermometer('thermoClean', 20, 'blue');
+        drawThermometer('thermoDirty', 20, '#8b4513');
+        drawThermometer('thermoFiltered', 20, '#28a745');
+    };
+</script>
+
+</body>
+</html>
