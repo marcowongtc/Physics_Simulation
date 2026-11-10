@@ -3,41 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heating Curve of Distilled vs. Dirty Water | 蒸餾水與污水加熱曲線</title>
+    <title>Heating Curve of Clean, Dirty & Filtered Water | 清水、污水與過濾水加熱曲線</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f9f9f9; }
-        h2 { text-align: center; color: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f9f9f9; position: relative; }
+        
+        /* Teacher Signature */
+        .teacher-signature { position: absolute; top: 10px; right: 20px; font-weight: bold; color: #555; text-align: right; font-size: 1.1em; }
+        
+        h2 { text-align: center; color: #333; margin-top: 30px; }
         .container { display: flex; flex-wrap: wrap; gap: 20px; }
-        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex: 1; min-width: 350px; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex: 1; min-width: 380px; }
         
         /* Table Styles */
         .table-container { max-height: 400px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #ddd; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; font-size: 0.95em; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; font-size: 0.9em; }
         th { background-color: #f2f2f2; position: sticky; top: 0; z-index: 1; }
-        input[type="number"] { width: 70px; padding: 4px; text-align: center; }
+        input[type="number"] { width: 60px; padding: 4px; text-align: center; }
         input[type="text"].student-info { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         
-        /* Buttons and Alerts */
+        /* Buttons */
         .btn { padding: 8px 12px; margin: 5px 5px 5px 0; cursor: pointer; border: none; border-radius: 4px; background-color: #0056b3; color: white; transition: 0.3s; font-size: 0.9em; }
         .btn:hover { background-color: #004494; }
         .btn-success { background-color: #28a745; }
         .btn-success:hover { background-color: #218838; }
-        .alert { padding: 10px; margin-bottom: 10px; border-radius: 4px; font-weight: bold; }
-        .alert-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: none; }
         
-        /* Animation Area & Chart Styles */
-        .chart-container { position: relative; height: 450px; width: 100%; }
-        .apparatus-area { display: flex; justify-content: center; align-items: center; margin-top: 30px; height: 250px; gap: 30px; }
-        .setup { display: flex; flex-direction: column; align-items: center; width: 120px; }
+        /* Layout & Animation Area Styles */
+        .visualization-wrapper { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 50px; margin-top: 20px; }
+        .chart-container { position: relative; height: 650px; width: 450px; max-width: 100%; }
+        .animation-side { display: flex; flex-direction: column; align-items: center; }
+        
+        .apparatus-area { display: flex; justify-content: center; align-items: center; margin-top: 30px; height: 250px; gap: 15px; }
+        .setup { display: flex; flex-direction: column; align-items: center; width: 100px; text-align: center; }
         canvas.thermometer { border: 2px solid #555; border-radius: 15px 15px 0 0; background-color: #eef; }
-        #comparisonSymbol { font-size: 3.5em; font-weight: bold; color: #333; width: 50px; text-align: center; }
-        .controls { display: flex; align-items: center; gap: 10px; margin-top: 15px; font-size: 0.9em; }
+        .comparison { font-size: 2.5em; font-weight: bold; color: #333; width: 30px; text-align: center; }
+        .controls { display: flex; align-items: center; gap: 10px; font-size: 0.9em; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        
+        @media (max-width: 800px) {
+            .teacher-signature { position: static; text-align: center; margin-bottom: 10px; }
+        }
     </style>
 </head>
 <body>
+
+<div class="teacher-signature">Marco Wong 黃子駿老師</div>
 
 <h2>Heating Curve Experiment<br><span style="font-size: 0.8em; color: #555;">加熱曲線實驗</span></h2>
 
@@ -46,17 +56,7 @@
     <div class="panel">
         <h3>Data Entry / 數據輸入</h3>
         
-        <input type="text" id="studentInfo" class="student-info" placeholder="Name, Class, Class No. / 姓名, 班別, 學號 (e.g. 4A 01 Chan Tai Man)">
-        
-        <div id="boilingWarning" class="alert alert-warning">
-            Boiling point not reached yet. Please input at least 4 stable readings.<br>
-            <span style="font-size: 0.9em;">尚未達到沸點。請輸入至少四個連續穩定的讀數。</span>
-        </div>
-        
-        <div id="boilingSuccess" class="alert alert-success">
-            Boiling point reached! Temperature has remained stable for 4 readings.<br>
-            <span style="font-size: 0.9em;">達到沸點！溫度已連續四次讀數保持穩定。</span>
-        </div>
+        <input type="text" id="studentInfo" class="student-info" placeholder="Name, Class, Class No., Group No. / 姓名, 班別, 學號, 組別 (e.g. 4A 01 Gp2 Chan Tai Man)">
         
         <p style="font-size: 0.85em; color: #666; margin-top: 0;">* Tip: You can copy and paste data directly from Excel! / 提示：可以直接從 Excel 複製並貼上數據！</p>
         
@@ -65,8 +65,9 @@
                 <thead>
                     <tr>
                         <th>Time (s)<br>時間 (秒)</th>
-                        <th>Distilled Water (°C)<br>蒸餾水 (°C)</th>
+                        <th>Clean Water (°C)<br>清水 (°C)</th>
                         <th>Dirty Water (°C)<br>污水 (°C)</th>
+                        <th>Filtered Water (°C)<br>過濾水 (°C)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -85,35 +86,49 @@
     <div class="panel" style="flex: 2;">
         <h3>Graph & Replay / 圖表與回放</h3>
         
-        <div class="chart-container">
-            <canvas id="myChart"></canvas>
-        </div>
-        
-        <div class="controls">
-            <button class="btn btn-success" id="playBtn" onclick="togglePlay()">Play Animation / 播放動畫</button>
-            <label for="speed">Speed / 速度:</label>
-            <select id="speed">
-                <option value="1000">1x</option>
-                <option value="500">2x</option>
-                <option value="200" selected>5x</option>
-                <option value="100">10x</option>
-            </select>
-            <span id="currentTime" style="font-weight: bold; min-width: 120px;">Time / 時間: 0 s</span>
-        </div>
-
-        <div class="apparatus-area">
-            <div class="setup">
-                <h4 style="margin-bottom: 5px; color: blue;">Distilled Water<br>蒸餾水</h4>
-                <canvas id="thermoDistilled" width="40" height="200" class="thermometer"></canvas>
-                <div id="tempDistilledDisplay" style="margin-top: 5px; font-weight: bold; color: blue;">0 °C</div>
+        <div class="visualization-wrapper">
+            <!-- Left Side: Graph -->
+            <div class="chart-container">
+                <canvas id="myChart"></canvas>
             </div>
             
-            <div id="comparisonSymbol">=</div>
-            
-            <div class="setup">
-                <h4 style="margin-bottom: 5px; color: #8b4513;">Dirty Water<br>污水</h4>
-                <canvas id="thermoDirty" width="40" height="200" class="thermometer"></canvas>
-                <div id="tempDirtyDisplay" style="margin-top: 5px; font-weight: bold; color: #8b4513;">0 °C</div>
+            <!-- Right Side: Animation -->
+            <div class="animation-side">
+                <div class="controls">
+                    <button class="btn btn-success" id="playBtn" onclick="togglePlay()">Play Animation / 播放動畫</button>
+                    <label for="speed">Speed / 速度:</label>
+                    <select id="speed">
+                        <option value="1000">1x</option>
+                        <option value="500">2x</option>
+                        <option value="200" selected>5x</option>
+                        <option value="100">10x</option>
+                    </select>
+                    <span id="currentTime" style="font-weight: bold; min-width: 120px; margin-left: 10px;">Time / 時間: 0 s</span>
+                </div>
+
+                <div class="apparatus-area">
+                    <div class="setup">
+                        <h4 style="margin-bottom: 5px; color: blue; font-size: 0.9em;">Clean Water<br>清水</h4>
+                        <canvas id="thermoClean" width="40" height="200" class="thermometer"></canvas>
+                        <div id="tempCleanDisplay" style="margin-top: 5px; font-weight: bold; color: blue;">0 °C</div>
+                    </div>
+                    
+                    <div id="comparisonSymbol1" class="comparison">=</div>
+                    
+                    <div class="setup">
+                        <h4 style="margin-bottom: 5px; color: #8b4513; font-size: 0.9em;">Dirty Water<br>污水</h4>
+                        <canvas id="thermoDirty" width="40" height="200" class="thermometer"></canvas>
+                        <div id="tempDirtyDisplay" style="margin-top: 5px; font-weight: bold; color: #8b4513;">0 °C</div>
+                    </div>
+
+                    <div id="comparisonSymbol2" class="comparison">=</div>
+
+                    <div class="setup">
+                        <h4 style="margin-bottom: 5px; color: #28a745; font-size: 0.9em;">Filtered Water<br>過濾水</h4>
+                        <canvas id="thermoFiltered" width="40" height="200" class="thermometer"></canvas>
+                        <div id="tempFilteredDisplay" style="margin-top: 5px; font-weight: bold; color: #28a745;">0 °C</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -128,24 +143,24 @@
     let playIndex = 0;
     
     // Arrays to store full data during animation
-    let fullLabels = [], fullDistilled = [], fullDirty = [];
+    let fullLabels = [], fullClean = [], fullDirty = [], fullFiltered = [];
 
     // Triggered automatically on any input change
     function handleInput() {
         if (isPlaying) return; // Prevent interference if they type during animation
         playIndex = 0; // Reset animation tracker
-        checkBoiling();
         updateGraph();
     }
 
-    // Initialize Table with oninput trigger for auto-updates
+    // Initialize Table with 3 inputs in new order
     function addRow() {
         const tbody = document.querySelector('#dataTable tbody');
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${time}</td>
-            <td><input type="number" class="distilled" step="1" oninput="handleInput()"></td>
+            <td><input type="number" class="clean" step="1" oninput="handleInput()"></td>
             <td><input type="number" class="dirty" step="1" oninput="handleInput()"></td>
+            <td><input type="number" class="filtered" step="1" oninput="handleInput()"></td>
         `;
         tbody.appendChild(tr);
         time += interval;
@@ -185,47 +200,31 @@
         handleInput(); // Auto-update after pasting
     });
 
-    // Auto-detect boiling logic (Controls Warning / Success Banners)
-    function checkBoiling() {
-        const distilledInputs = Array.from(document.querySelectorAll('.distilled')).map(i => parseFloat(i.value)).filter(v => !isNaN(v));
-        const dirtyInputs = Array.from(document.querySelectorAll('.dirty')).map(i => parseFloat(i.value)).filter(v => !isNaN(v));
-        
-        const isStable = (arr) => {
-            if (arr.length < 4) return false;
-            const last4 = arr.slice(-4);
-            return (Math.max(...last4) - Math.min(...last4)) <= 0.5;
-        };
-
-        if (isStable(distilledInputs) || isStable(dirtyInputs)) {
-            document.getElementById('boilingWarning').style.display = 'none';
-            document.getElementById('boilingSuccess').style.display = 'block';
-        } else {
-            document.getElementById('boilingWarning').style.display = 'block';
-            document.getElementById('boilingSuccess').style.display = 'none';
-        }
-    }
-
     function extractFullData() {
         const rows = document.querySelectorAll('#dataTable tbody tr');
-        fullLabels = []; fullDistilled = []; fullDirty = [];
+        fullLabels = []; fullClean = []; fullDirty = []; fullFiltered = [];
         
         rows.forEach(row => {
             fullLabels.push(row.cells[0].innerText);
-            let valDist = parseFloat(row.querySelector('.distilled').value);
+            let valClean = parseFloat(row.querySelector('.clean').value);
             let valDirty = parseFloat(row.querySelector('.dirty').value);
-            fullDistilled.push(isNaN(valDist) ? null : valDist);
+            let valFiltered = parseFloat(row.querySelector('.filtered').value);
+            
+            fullClean.push(isNaN(valClean) ? null : valClean);
             fullDirty.push(isNaN(valDirty) ? null : valDirty);
+            fullFiltered.push(isNaN(valFiltered) ? null : valFiltered);
         });
     }
 
-    // Initialize Chart.js with maintainAspectRatio: false for elongated Y-axis
+    // Initialize Chart.js with 3 datasets in new order
     function initChart() {
         const ctx = document.getElementById('myChart').getContext('2d');
         chart = new Chart(ctx, {
             type: 'line',
             data: { labels: [], datasets: [
-                { label: 'Distilled Water / 蒸餾水', borderColor: 'blue', backgroundColor: 'blue', data: [], fill: false, tension: 0 },
-                { label: 'Dirty Water / 污水', borderColor: '#8b4513', backgroundColor: '#8b4513', data: [], fill: false, tension: 0 }
+                { label: 'Clean Water / 清水', borderColor: 'blue', backgroundColor: 'blue', data: [], fill: false, tension: 0 },
+                { label: 'Dirty Water / 污水', borderColor: '#8b4513', backgroundColor: '#8b4513', data: [], fill: false, tension: 0 },
+                { label: 'Filtered Water / 過濾水', borderColor: '#28a745', backgroundColor: '#28a745', data: [], fill: false, tension: 0 }
             ]},
             options: {
                 maintainAspectRatio: false,
@@ -242,8 +241,9 @@
     function updateGraph() {
         extractFullData();
         chart.data.labels = fullLabels;
-        chart.data.datasets[0].data = fullDistilled;
+        chart.data.datasets[0].data = fullClean;
         chart.data.datasets[1].data = fullDirty;
+        chart.data.datasets[2].data = fullFiltered;
         chart.update();
     }
 
@@ -258,6 +258,14 @@
         
         ctx.fillStyle = liquidColor;
         ctx.fillRect(10, canvas.height - fillHeight, 20, fillHeight);
+    }
+
+    // Helper to compare values
+    function getComparisonSymbol(val1, val2) {
+        if (val1 === null || val2 === null) return "?";
+        if (val1 > val2) return ">";
+        if (val1 < val2) return "<";
+        return "=";
     }
 
     // Point-by-point Animation
@@ -282,6 +290,7 @@
                 chart.data.labels = [];
                 chart.data.datasets[0].data = [];
                 chart.data.datasets[1].data = [];
+                chart.data.datasets[2].data = [];
                 chart.update();
             }
             
@@ -294,33 +303,31 @@
                 }
                 
                 let t = fullLabels[playIndex];
-                let tempDist = fullDistilled[playIndex];
+                let tempClean = fullClean[playIndex];
                 let tempDirty = fullDirty[playIndex];
+                let tempFiltered = fullFiltered[playIndex];
                 
                 // Push next data point to the graph
                 chart.data.labels.push(t);
-                chart.data.datasets[0].data.push(tempDist);
+                chart.data.datasets[0].data.push(tempClean);
                 chart.data.datasets[1].data.push(tempDirty);
+                chart.data.datasets[2].data.push(tempFiltered);
                 chart.update();
                 
                 // Update UI readouts
                 document.getElementById('currentTime').innerText = `Time / 時間: ${t} s`;
-                document.getElementById('tempDistilledDisplay').innerText = (tempDist !== null ? tempDist : "--") + " °C";
+                document.getElementById('tempCleanDisplay').innerText = (tempClean !== null ? tempClean : "--") + " °C";
                 document.getElementById('tempDirtyDisplay').innerText = (tempDirty !== null ? tempDirty : "--") + " °C";
+                document.getElementById('tempFilteredDisplay').innerText = (tempFiltered !== null ? tempFiltered : "--") + " °C";
                 
-                // Update Thermometers
-                drawThermometer('thermoDistilled', tempDist, 'blue');
-                drawThermometer('thermoDirty', tempDirty, '#8b4513');
+                // Update Thermometers in new order
+                drawThermometer('thermoClean', tempClean, 'blue');
+                drawThermometer('thermoDirty', tempDirty, '#8b4513');       // Brown
+                drawThermometer('thermoFiltered', tempFiltered, '#28a745'); // Green
                 
-                // Update Symbol
-                let symbol = "=";
-                if (tempDist !== null && tempDirty !== null) {
-                    if (tempDist > tempDirty) symbol = ">";
-                    else if (tempDist < tempDirty) symbol = "<";
-                } else {
-                    symbol = "?"; 
-                }
-                document.getElementById('comparisonSymbol').innerText = symbol;
+                // Update Symbols based on new sequence
+                document.getElementById('comparisonSymbol1').innerText = getComparisonSymbol(tempClean, tempDirty);
+                document.getElementById('comparisonSymbol2').innerText = getComparisonSymbol(tempDirty, tempFiltered);
                 
                 playIndex++;
             }, speed);
@@ -387,8 +394,9 @@
     window.onload = () => {
         for(let i=0; i<=20; i++) addRow(); // 0 to 400s
         initChart();
-        drawThermometer('thermoDistilled', 20, 'blue');
+        drawThermometer('thermoClean', 20, 'blue');
         drawThermometer('thermoDirty', 20, '#8b4513');
+        drawThermometer('thermoFiltered', 20, '#28a745');
     };
 </script>
 
